@@ -9,7 +9,9 @@ import Home from './pages/Home';
 import Login from './pages/Login';
 import Troubleshooting from './pages/Troubleshooting';
 import Survey from './pages/Survey';
+import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminTickets from './pages/admin/AdminTickets';
+import TicketDetails from './pages/admin/TicketDetails';
 import AccountManagement from './pages/AccountManagement';
 import DocumentUpload from './pages/DocumentUpload';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -32,10 +34,26 @@ function App() {
             }
           />
           <Route
+            path="/admin/dashboard"
+            element={
+              <ProtectedRoute requiredRole="ADMIN">
+                <AdminDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/admin/tickets"
             element={
               <ProtectedRoute requiredRole="ADMIN">
                 <AdminTickets />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/tickets/:id"
+            element={
+              <ProtectedRoute requiredRole="ADMIN">
+                <TicketDetails />
               </ProtectedRoute>
             }
           />
