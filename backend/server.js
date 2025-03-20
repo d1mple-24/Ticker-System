@@ -4,6 +4,9 @@ import dotenv from 'dotenv';
 import authRoutes from './routes/auth.js';
 import ticketRoutes from './routes/tickets.js';
 import adminRoutes from './routes/admin.js';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient()
 
 // Load environment variables
 dotenv.config();

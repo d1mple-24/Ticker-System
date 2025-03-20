@@ -1,7 +1,9 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import prisma from '../prisma.js';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient()
 import dotenv from 'dotenv';
 
 // Load environment variables
