@@ -24,6 +24,8 @@ const Troubleshooting = () => {
     modelOfEquipment: '',
     serialNo: '',
     specificProblem: '',
+    customEquipmentType: '',
+    customModel: '',
   });
   const [message, setMessage] = useState(null);
 
@@ -35,7 +37,8 @@ const Troubleshooting = () => {
       'Dell OptiPlex',
       'ASUS VivoPC',
       'MSI Pro',
-      'Intel NUC'
+      'Intel NUC',
+      'Other'
     ],
     Laptop: [
       'Acer Swift',
@@ -45,7 +48,8 @@ const Troubleshooting = () => {
       'ASUS ZenBook',
       'MSI Modern',
       'MacBook Pro',
-      'MacBook Air'
+      'MacBook Air',
+      'Other'
     ],
     Printer: [
       'HP LaserJet',
@@ -54,7 +58,8 @@ const Troubleshooting = () => {
       'Brother HL',
       'Xerox VersaLink',
       'Lexmark',
-      'Samsung Xpress'
+      'Samsung Xpress',
+      'Other'
     ],
     Scanner: [
       'Epson V39',
@@ -63,8 +68,10 @@ const Troubleshooting = () => {
       'Brother ADS',
       'Fujitsu ScanSnap',
       'Kodak i2600',
-      'Plustek'
-    ]
+      'Plustek',
+      'Other'
+    ],
+    Others: []
   };
 
   const handleChange = (e) => {
@@ -80,13 +87,15 @@ const Troubleshooting = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      const finalModelOfEquipment = formData.modelOfEquipment === 'Other' ? formData.customModel : formData.modelOfEquipment;
+      
       await axios.post('http://localhost:5000/api/tickets', {
         name: formData.name,
         email: formData.email,
         department: formData.department,
         dateOfRequest: formData.dateOfRequest,
-        typeOfEquipment: formData.typeOfEquipment,
-        modelOfEquipment: formData.modelOfEquipment,
+        typeOfEquipment: formData.typeOfEquipment === 'Others' ? formData.customEquipmentType : formData.typeOfEquipment,
+        modelOfEquipment: finalModelOfEquipment,
         serialNo: formData.serialNo,
         specificProblem: formData.specificProblem
       });
@@ -106,6 +115,8 @@ const Troubleshooting = () => {
         modelOfEquipment: '',
         serialNo: '',
         specificProblem: '',
+        customEquipmentType: '',
+        customModel: '',
       });
     } catch (error) {
       setMessage({
@@ -214,22 +225,60 @@ const Troubleshooting = () => {
                 <MenuItem value="Laptop">Laptop</MenuItem>
                 <MenuItem value="Printer">Printer</MenuItem>
                 <MenuItem value="Scanner">Scanner</MenuItem>
+                <MenuItem value="Others">Others</MenuItem>
               </Select>
             </FormControl>
 
-            <FormControl fullWidth required>
-              <InputLabel>Model of Equipment</InputLabel>
-              <Select
-                name="modelOfEquipment"
-                value={formData.modelOfEquipment}
+            {formData.typeOfEquipment === 'Others' ? (
+              <TextField
+                fullWidth
+                required
+                name="customEquipmentType"
+                label="Specify Equipment Type"
+                value={formData.customEquipmentType || ''}
                 onChange={handleChange}
-                label="Model of Equipment"
-                disabled={!formData.typeOfEquipment}
-              >
-                {formData.typeOfEquipment && equipmentModels[formData.typeOfEquipment].map((model) => (
-                  <MenuItem key={model} value={model}>{model}</MenuItem>
-                ))}
-              </Select>
+                sx={{ mt: 2 }}
+              />
+            ) : null}
+
+            <FormControl fullWidth required sx={{ mt: 2 }}>
+              {formData.typeOfEquipment === 'Others' ? (
+                <TextField
+                  fullWidth
+                  required
+                  name="modelOfEquipment"
+                  label="Specify Equipment Model"
+                  value={formData.modelOfEquipment || ''}
+                  onChange={handleChange}
+                />
+              ) : (
+                <>
+                  <InputLabel>Model of Equipment</InputLabel>
+                  <Select
+                    name="modelOfEquipment"
+                    value={formData.modelOfEquipment}
+                    onChange={handleChange}
+                    label="Model of Equipment"
+                  >
+                    {(equipmentModels[formData.typeOfEquipment] || []).map((model) => (
+                      <MenuItem key={model} value={model}>
+                        {model}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </>
+              )}
+              {formData.modelOfEquipment === 'Other' && formData.typeOfEquipment !== 'Others' && (
+                <TextField
+                  fullWidth
+                  required
+                  name="customModel"
+                  label="Specify Other Model"
+                  value={formData.customModel}
+                  onChange={handleChange}
+                  sx={{ mt: 2 }}
+                />
+              )}
             </FormControl>
 
             <TextField

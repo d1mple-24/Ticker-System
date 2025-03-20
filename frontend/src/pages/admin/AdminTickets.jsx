@@ -163,24 +163,25 @@ function AdminTickets() {
                 <TableRow>
                   <TableCell>ID</TableCell>
                   <TableCell>Name</TableCell>
+                  <TableCell>Department</TableCell>
+                  <TableCell>Equipment</TableCell>
                   <TableCell>Problem</TableCell>
-                  <TableCell>Office</TableCell>
-                  <TableCell>Equipment Type</TableCell>
+                  <TableCell>Completed By</TableCell>
                   <TableCell>Status</TableCell>
-                  <TableCell>Contact</TableCell>
                   <TableCell>Date</TableCell>
+
                 </TableRow>
               </TableHead>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={8} align="center">
+                    <TableCell colSpan={9} align="center">
                       <CircularProgress size={24} sx={{ my: 2 }} />
                     </TableCell>
                   </TableRow>
                 ) : displayedTickets.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} align="center">
+                    <TableCell colSpan={9} align="center">
                       {error ? 'Error loading tickets' : 'No tickets found'}
                     </TableCell>
                   </TableRow>
@@ -202,6 +203,15 @@ function AdminTickets() {
                     >
                       <TableCell>{ticket.id}</TableCell>
                       <TableCell>{ticket.name || 'N/A'}</TableCell>
+                      <TableCell>{ticket.department || 'N/A'}</TableCell>
+                      <TableCell>
+                        <Typography variant="body2" component="div">
+                          <strong>Type:</strong> {ticket.typeOfEquipment || 'N/A'}
+                        </Typography>
+                        <Typography variant="caption" color="textSecondary">
+                          <strong>Model:</strong> {ticket.modelOfEquipment || 'N/A'}
+                        </Typography>
+                      </TableCell>
                       <TableCell>
                         {ticket.specificProblem ? 
                           (ticket.specificProblem.length > 50 
@@ -209,8 +219,7 @@ function AdminTickets() {
                             : ticket.specificProblem)
                           : 'N/A'}
                       </TableCell>
-                      <TableCell>{ticket.office || 'N/A'}</TableCell>
-                      <TableCell>{ticket.typeOfEquipment || 'N/A'}</TableCell>
+                      <TableCell>{ticket.completedBy || 'Pending'}</TableCell>
                       <TableCell>
                         <Chip 
                           label={ticket.status || 'PENDING'} 
@@ -219,7 +228,6 @@ function AdminTickets() {
                           sx={{ minWidth: 85 }}
                         />
                       </TableCell>
-                      <TableCell>{ticket.email || 'N/A'}</TableCell>
                       <TableCell>
                         {ticket.dateOfRequest ? new Date(ticket.dateOfRequest).toLocaleDateString() : 'N/A'}
                       </TableCell>
@@ -260,22 +268,85 @@ function AdminTickets() {
         >
           <DialogTitle sx={{ 
             borderBottom: '1px solid #e0e0e0',
-            bgcolor: '#fafafa'
+            bgcolor: '#fafafa',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
           }}>
-            Ticket Details
+            <Typography variant="h6">Ticket Details</Typography>
+            <Chip 
+              label={selectedTicket?.status || 'PENDING'} 
+              color={getStatusColor(selectedTicket?.status)}
+              size="small"
+              sx={{ minWidth: 85 }}
+            />
           </DialogTitle>
           <DialogContent dividers>
             {selectedTicket && (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 1 }}>
-                <Typography><strong>Name:</strong> {selectedTicket.name || 'N/A'}</Typography>
-                <Typography><strong>Problem:</strong> {selectedTicket.specificProblem || 'N/A'}</Typography>
-                <Typography><strong>Office:</strong> {selectedTicket.office || 'N/A'}</Typography>
-                <Typography><strong>Equipment Type:</strong> {selectedTicket.typeOfEquipment || 'N/A'}</Typography>
-                <Typography><strong>Model:</strong> {selectedTicket.modelOfEquipment || 'N/A'}</Typography>
-                <Typography><strong>Serial No:</strong> {selectedTicket.serialNo || 'N/A'}</Typography>
-                <Typography><strong>Contact:</strong> {selectedTicket.email || 'N/A'}</Typography>
-                <Typography><strong>Date:</strong> {selectedTicket.dateOfRequest ? new Date(selectedTicket.dateOfRequest).toLocaleDateString() : 'N/A'}</Typography>
+                {/* Request Information */}
+                <Typography variant="h6" color="primary" sx={{ mt: 1 }}>
+                  Request Information
+                </Typography>
+                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+                  <Typography><strong>Name:</strong> {selectedTicket.name || 'N/A'}</Typography>
+                  <Typography><strong>Date:</strong> {selectedTicket.dateOfRequest ? new Date(selectedTicket.dateOfRequest).toLocaleDateString() : 'N/A'}</Typography>
+                  <Typography><strong>Office:</strong> {selectedTicket.office || 'N/A'}</Typography>
+                  <Typography><strong>Contact:</strong> {selectedTicket.email || 'N/A'}</Typography>
+                  <Typography><strong>Equipment Type:</strong> {selectedTicket.typeOfEquipment || 'N/A'}</Typography>
+                  <Typography><strong>Model:</strong> {selectedTicket.modelOfEquipment || 'N/A'}</Typography>
+                  <Typography><strong>Serial No:</strong> {selectedTicket.serialNo || 'N/A'}</Typography>
+                </Box>
+
+                <Typography><strong>Problem Description:</strong></Typography>
+                <Paper variant="outlined" sx={{ p: 2, bgcolor: '#f8f9fa' }}>
+                  <Typography>{selectedTicket.specificProblem || 'N/A'}</Typography>
+                </Paper>
+
+                {/* Technical Assessment */}
+                <Typography variant="h6" color="primary" sx={{ mt: 2 }}>
+                  Technical Assessment
+                </Typography>
                 
+                <TextField
+                  label="Repair/Diagnostic Completed By"
+                  value={selectedTicket.completedBy || ''}
+                  onChange={(e) => setSelectedTicket({...selectedTicket, completedBy: e.target.value})}
+                  fullWidth
+                />
+
+                <TextField
+                  label="Diagnosis"
+                  multiline
+                  rows={3}
+                  value={selectedTicket.diagnosis || ''}
+                  onChange={(e) => setSelectedTicket({...selectedTicket, diagnosis: e.target.value})}
+                  fullWidth
+                />
+
+                <TextField
+                  label="Action Taken"
+                  multiline
+                  rows={3}
+                  value={selectedTicket.actionTaken || ''}
+                  onChange={(e) => setSelectedTicket({...selectedTicket, actionTaken: e.target.value})}
+                  fullWidth
+                />
+
+                <TextField
+                  label="Recommendations"
+                  multiline
+                  rows={3}
+                  value={selectedTicket.recommendations || ''}
+                  onChange={(e) => setSelectedTicket({...selectedTicket, recommendations: e.target.value})}
+                  fullWidth
+                />
+
+                {/* Status Update */}
+                <Typography variant="h6" color="primary" sx={{ mt: 2 }}>
+                  Status Update
+                </Typography>
+
                 <FormControl fullWidth>
                   <InputLabel>Status</InputLabel>
                   <Select
@@ -291,9 +362,9 @@ function AdminTickets() {
                 </FormControl>
 
                 <TextField
-                  label="Response"
+                  label="Additional Notes/Response"
                   multiline
-                  rows={4}
+                  rows={3}
                   value={selectedTicket.response || ''}
                   onChange={(e) => setSelectedTicket({...selectedTicket, response: e.target.value})}
                   fullWidth
@@ -311,9 +382,14 @@ function AdminTickets() {
             <Button 
               onClick={() => handleUpdateTicket(selectedTicket.id, {
                 status: selectedTicket.status || 'PENDING',
-                response: selectedTicket.response || ''
+                response: selectedTicket.response || '',
+                completedBy: selectedTicket.completedBy || '',
+                diagnosis: selectedTicket.diagnosis || '',
+                actionTaken: selectedTicket.actionTaken || '',
+                recommendations: selectedTicket.recommendations || ''
               })} 
               variant="contained"
+              color="primary"
               sx={{ textTransform: 'none' }}
             >
               Update Ticket
