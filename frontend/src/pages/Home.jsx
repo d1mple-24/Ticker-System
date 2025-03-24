@@ -4,157 +4,153 @@ import {
   Container,
   Box,
   Typography,
-  Button,
-  Grid,
-  IconButton,
   Paper,
+  Grid,
 } from '@mui/material';
 import {
-  ComputerRounded as ComputerIcon,
-  ManageAccounts as ManageAccountsIcon,
-  UploadFile as UploadFileIcon,
-  Login as LoginIcon,
-  Logout as LogoutIcon,
+  AddCircleOutline as AddIcon,
+  ListAlt as ListIcon,
 } from '@mui/icons-material';
 
 const Home = () => {
   const navigate = useNavigate();
-  const user = JSON.parse(localStorage.getItem('user'));
-  const isAuthenticated = !!localStorage.getItem('token');
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    navigate('/login');
-  };
-
-  const ServiceButton = ({ title, description, icon, onClick, disabled }) => (
+  const ServiceCard = ({ title, description, icon, onClick }) => (
     <Paper
       elevation={3}
       sx={{
-        p: 3,
+        p: 4,
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        cursor: disabled ? 'not-allowed' : 'pointer',
-        opacity: disabled ? 0.7 : 1,
-        transition: 'transform 0.2s',
+        cursor: 'pointer',
+        transition: 'all 0.3s',
         '&:hover': {
-          transform: disabled ? 'none' : 'translateY(-5px)',
+          transform: 'translateY(-8px)',
+          boxShadow: 6,
         },
       }}
-      onClick={disabled ? undefined : onClick}
+      onClick={onClick}
     >
-      {icon}
-      <Typography variant="h6" sx={{ mt: 2, mb: 1 }}>
+      <Box
+        sx={{
+          bgcolor: 'primary.main',
+          borderRadius: '50%',
+          p: 2,
+          mb: 3,
+          color: 'white',
+        }}
+      >
+        {icon}
+      </Box>
+      <Typography variant="h5" gutterBottom align="center" sx={{ fontWeight: 600 }}>
         {title}
       </Typography>
-      <Typography variant="body2" color="text.secondary" align="center">
+      <Typography variant="body1" color="text.secondary" align="center">
         {description}
       </Typography>
-      {disabled && (
-        <Typography variant="caption" color="error" sx={{ mt: 1 }}>
-          Login required
-        </Typography>
-      )}
     </Paper>
   );
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Box sx={{ position: 'absolute', top: 16, right: 16 }}>
-        {isAuthenticated ? (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Typography variant="subtitle2">
-              Welcome, {user?.name || 'User'}
-            </Typography>
-            <IconButton onClick={handleLogout} color="inherit" title="Logout">
-              <LogoutIcon />
-            </IconButton>
-          </Box>
-        ) : (
-          <IconButton
-            onClick={() => navigate('/login')}
-            color="inherit"
-            title="Login"
-          >
-            <LoginIcon />
-          </IconButton>
-        )}
-      </Box>
-
-      <Box
-        component="img"
-        src={process.env.PUBLIC_URL + '/deped-logo.png'}
-        alt="DepEd Logo"
-        sx={{
-          width: 120,
-          height: 120,
-          display: 'block',
-          margin: '0 auto',
-          mb: 4,
+    <Box sx={{ minHeight: '100vh', bgcolor: '#f5f5f5' }}>
+      {/* Header */}
+      <Paper 
+        elevation={0} 
+        sx={{ 
+          py: 2, 
+          px: 3, 
+          bgcolor: 'primary.main', 
+          color: 'white',
+          borderRadius: 0,
         }}
-      />
-
-      <Typography variant="h4" align="center" gutterBottom>
-        TICKETING SYSTEM
-      </Typography>
-      <Typography variant="subtitle1" align="center" sx={{ mb: 6 }}>
-        Division of Imus City
-      </Typography>
-
-      <Grid container spacing={4}>
-        <Grid item xs={12} md={4}>
-          <ServiceButton
-            title="Troubleshooting"
-            description="Submit technical issues and get support"
-            icon={<ComputerIcon sx={{ fontSize: 40 }} />}
-            onClick={() => navigate('/troubleshooting')}
-            disabled={false}
-          />
-        </Grid>
-        <Grid item xs={12} md={4}>
-          <ServiceButton
-            title="Account Management"
-            description="Manage your account settings and preferences"
-            icon={<ManageAccountsIcon sx={{ fontSize: 40 }} />}
-            onClick={() => navigate('/account')}
-            disabled={!isAuthenticated}
-          />
-        </Grid>
-        <Grid item xs={12} md={4}>
-          <ServiceButton
-            title="Upload Documents"
-            description="Upload and manage your documents"
-            icon={<UploadFileIcon sx={{ fontSize: 40 }} />}
-            onClick={() => navigate('/documents')}
-            disabled={!isAuthenticated}
-          />
-        </Grid>
-      </Grid>
-
-      <Box sx={{ mt: 4, textAlign: 'center' }}>
-        <Button
-          variant="contained"
-          color="primary"
-          size="large"
-          onClick={() => navigate('/survey')}
-          sx={{ mt: 4 }}
-        >
-          CLIENT SATISFACTION SURVEY
-        </Button>
-      </Box>
-
-      <Typography
-        variant="body2"
-        color="text.secondary"
-        align="center"
-        sx={{ mt: 4 }}
       >
-        © DepEd Imus Division | 2025
-      </Typography>
-    </Container>
+        <Box sx={{ 
+          display: 'flex', 
+          alignItems: 'center',
+          maxWidth: 1200,
+          mx: 'auto',
+          gap: 2
+        }}>
+          <img 
+            src={process.env.PUBLIC_URL + '/deped-logo.png'} 
+            alt="DepEd Logo" 
+            style={{ height: 40 }}
+          />
+          <Typography variant="h6" sx={{ fontWeight: 600 }}>
+            Service Desk
+          </Typography>
+        </Box>
+      </Paper>
+
+      {/* Main Content */}
+      <Container maxWidth="lg" sx={{ py: 8 }}>
+        {/* Welcome Section */}
+        <Box sx={{ textAlign: 'center', mb: 8 }}>
+          <Typography variant="h3" gutterBottom sx={{ fontWeight: 700 }}>
+            Hello, how can we help?
+          </Typography>
+          <Typography variant="h6" color="text.secondary" sx={{ mb: 2 }}>
+            Division of Imus City
+          </Typography>
+        </Box>
+
+        {/* Service Options */}
+        <Grid container spacing={4} maxWidth="md" sx={{ mx: 'auto' }}>
+          <Grid item xs={12} md={6}>
+            <ServiceCard
+              title="Submit a ticket"
+              description="Submit a new issue to a department"
+              icon={<AddIcon sx={{ fontSize: 40 }} />}
+              onClick={() => navigate('/tickets')}
+            />
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <ServiceCard
+              title="View existing tickets"
+              description="View tickets you submitted in the past"
+              icon={<ListIcon sx={{ fontSize: 40 }} />}
+              onClick={() => navigate('/track-ticket')}
+            />
+          </Grid>
+        </Grid>
+
+        {/* Admin Panel Link */}
+        <Box sx={{ mt: 4, textAlign: 'center' }}>
+          <Typography
+            variant="body2"
+            color="primary"
+            sx={{ 
+              cursor: 'pointer',
+              '&:hover': { textDecoration: 'underline' }
+            }}
+            onClick={() => navigate('/login')}
+          >
+            Go to Administration Panel
+          </Typography>
+        </Box>
+      </Container>
+
+      {/* Footer */}
+      <Box 
+        component="footer" 
+        sx={{ 
+          py: 3,
+          textAlign: 'center',
+          position: 'fixed',
+          bottom: 0,
+          width: '100%',
+          bgcolor: 'background.paper',
+          borderTop: '1px solid',
+          borderColor: 'divider'
+        }}
+      >
+        <Typography variant="body2" color="text.secondary">
+          © {new Date().getFullYear()} DepEd Imus Division | ictcaa
+        </Typography>
+      </Box>
+    </Box>
   );
 };
 

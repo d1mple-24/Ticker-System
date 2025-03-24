@@ -31,6 +31,14 @@ import {
 import axios from 'axios';
 import AdminLayout from '../../components/AdminLayout';
 
+const API_BASE_URL = 'http://localhost:5000/api';
+
+const TICKET_CATEGORIES = {
+  TROUBLESHOOTING: 'Troubleshooting',
+  ACCOUNT_MANAGEMENT: 'Account Management',
+  DOCUMENT_UPLOAD: 'Document Upload'
+};
+
 function AdminTickets() {
   const [tickets, setTickets] = useState([]);
   const [page, setPage] = useState(0);
@@ -40,6 +48,7 @@ function AdminTickets() {
   const [error, setError] = useState(null);
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState('');
 
   useEffect(() => {
     fetchTickets();
@@ -48,16 +57,21 @@ function AdminTickets() {
   const fetchTickets = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/admin/tickets', {
+      const response = await axios.get(`${API_BASE_URL}/admin/tickets`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setTickets(response.data.tickets || []);
-      setLoading(false);
+
+      if (response.data.success) {
+        setTickets(response.data.data.tickets || []);
       setError(null);
+      } else {
+        throw new Error(response.data.message || 'Failed to fetch tickets');
+      }
     } catch (error) {
       console.error('Error fetching tickets:', error);
-      setError('Failed to fetch tickets. Please try again.');
+      setError(error.message || 'Failed to fetch tickets. Please try again.');
       setTickets([]);
+    } finally {
       setLoading(false);
     }
   };
@@ -70,14 +84,20 @@ function AdminTickets() {
   const handleUpdateTicket = async (ticketId, updates) => {
     try {
       const token = localStorage.getItem('token');
-      await axios.put(`http://localhost:5000/api/tickets/${ticketId}`, updates, {
+      const response = await axios.put(`${API_BASE_URL}/tickets/${ticketId}`, updates, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      fetchTickets();
+
+      if (response.data.success) {
+        await fetchTickets();
       setDialogOpen(false);
+        setError(null);
+      } else {
+        throw new Error(response.data.message || 'Failed to update ticket');
+      }
     } catch (error) {
       console.error('Error updating ticket:', error);
-      setError('Failed to update ticket. Please try again.');
+      setError(error.message || 'Failed to update ticket. Please try again.');
     }
   };
 
@@ -105,13 +125,56 @@ function AdminTickets() {
     }
   };
 
-  const filteredTickets = tickets.filter((ticket) =>
-    Object.values(ticket || {}).some(
+  const getCategoryLabel = (category) => {
+    return TICKET_CATEGORIES[category] || category;
+  };
+
+  const getTicketDetails = (ticket) => {
+    switch (ticket.category) {
+      case 'TROUBLESHOOTING':
+        return {
+          title: `${ticket.typeOfEquipment} Issue`,
+          subtitle: ticket.modelOfEquipment,
+          description: ticket.specificProblem
+        };
+      case 'ACCOUNT_MANAGEMENT':
+        return {
+          title: ticket.type,
+          subtitle: ticket.accountType || ticket.position,
+          description: ticket.reason
+        };
+      case 'DOCUMENT_UPLOAD':
+        return {
+          title: ticket.documentTitle,
+          subtitle: ticket.documentType,
+          description: ticket.documentDescription
+        };
+      default:
+        return {
+          title: 'Unknown',
+          subtitle: '',
+          description: ''
+        };
+    }
+  };
+
+  const filteredTickets = tickets.filter((ticket) => {
+    // First apply category filter
+    if (categoryFilter && ticket.category !== categoryFilter) {
+      return false;
+    }
+
+    // Then apply search filter
+    if (searchQuery) {
+      return Object.values(ticket || {}).some(
       value => 
         value && 
         value.toString().toLowerCase().includes(searchQuery.toLowerCase())
-    )
   );
+    }
+
+    return true;
+  });
 
   const displayedTickets = filteredTickets
     .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
@@ -129,6 +192,20 @@ function AdminTickets() {
           <Typography variant="h5" sx={{ fontWeight: 600, color: 'text.primary' }}>
             Manage Tickets
           </Typography>
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            <FormControl size="small" sx={{ minWidth: 200 }}>
+              <InputLabel>Category</InputLabel>
+              <Select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                label="Category"
+              >
+                <MenuItem value="">All Categories</MenuItem>
+                {Object.entries(TICKET_CATEGORIES).map(([value, label]) => (
+                  <MenuItem key={value} value={value}>{label}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
           <TextField
             size="small"
             placeholder="Search tickets..."
@@ -143,6 +220,7 @@ function AdminTickets() {
             }}
             sx={{ width: 300 }}
           />
+          </Box>
         </Box>
 
         {error && (
@@ -162,31 +240,31 @@ function AdminTickets() {
               <TableHead>
                 <TableRow>
                   <TableCell>ID</TableCell>
+                  <TableCell>Category</TableCell>
                   <TableCell>Name</TableCell>
                   <TableCell>Department</TableCell>
-                  <TableCell>Equipment</TableCell>
-                  <TableCell>Problem</TableCell>
-                  <TableCell>Completed By</TableCell>
+                  <TableCell>Details</TableCell>
                   <TableCell>Status</TableCell>
                   <TableCell>Date</TableCell>
-
                 </TableRow>
               </TableHead>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={9} align="center">
+                    <TableCell colSpan={7} align="center">
                       <CircularProgress size={24} sx={{ my: 2 }} />
                     </TableCell>
                   </TableRow>
                 ) : displayedTickets.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} align="center">
+                    <TableCell colSpan={7} align="center">
                       {error ? 'Error loading tickets' : 'No tickets found'}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  displayedTickets.map((ticket) => (
+                  displayedTickets.map((ticket) => {
+                    const details = getTicketDetails(ticket);
+                    return (
                     <TableRow 
                       key={ticket.id}
                       onClick={() => handleViewTicket(ticket)}
@@ -202,24 +280,33 @@ function AdminTickets() {
                       }}
                     >
                       <TableCell>{ticket.id}</TableCell>
+                        <TableCell>
+                          <Chip 
+                            label={getCategoryLabel(ticket.category)}
+                            size="small"
+                            color="primary"
+                            variant="outlined"
+                          />
+                        </TableCell>
                       <TableCell>{ticket.name || 'N/A'}</TableCell>
-                      <TableCell>{ticket.department || 'N/A'}</TableCell>
+                        <TableCell>{ticket.department || 'N/A'}</TableCell>
                       <TableCell>
-                        <Typography variant="body2" component="div">
-                          <strong>Type:</strong> {ticket.typeOfEquipment || 'N/A'}
-                        </Typography>
-                        <Typography variant="caption" color="textSecondary">
-                          <strong>Model:</strong> {ticket.modelOfEquipment || 'N/A'}
-                        </Typography>
+                          <Typography variant="body2" component="div">
+                            <strong>{details.title}</strong>
+                          </Typography>
+                          {details.subtitle && (
+                            <Typography variant="caption" color="textSecondary">
+                              {details.subtitle}
+                            </Typography>
+                          )}
+                          {details.description && (
+                            <Typography variant="body2" color="textSecondary" sx={{ mt: 0.5 }}>
+                              {details.description.length > 100 
+                                ? `${details.description.substring(0, 100)}...` 
+                                : details.description}
+                            </Typography>
+                          )}
                       </TableCell>
-                      <TableCell>
-                        {ticket.specificProblem ? 
-                          (ticket.specificProblem.length > 50 
-                            ? `${ticket.specificProblem.substring(0, 50)}...` 
-                            : ticket.specificProblem)
-                          : 'N/A'}
-                      </TableCell>
-                      <TableCell>{ticket.completedBy || 'Pending'}</TableCell>
                       <TableCell>
                         <Chip 
                           label={ticket.status || 'PENDING'} 
@@ -229,10 +316,11 @@ function AdminTickets() {
                         />
                       </TableCell>
                       <TableCell>
-                        {ticket.dateOfRequest ? new Date(ticket.dateOfRequest).toLocaleDateString() : 'N/A'}
+                          {ticket.createdAt ? new Date(ticket.createdAt).toLocaleDateString() : 'N/A'}
                       </TableCell>
                     </TableRow>
-                  ))
+                    );
+                  })
                 )}
               </TableBody>
             </Table>
@@ -273,38 +361,73 @@ function AdminTickets() {
             justifyContent: 'space-between',
             alignItems: 'center'
           }}>
-            <Typography variant="h6">Ticket Details</Typography>
-            <Chip 
-              label={selectedTicket?.status || 'PENDING'} 
-              color={getStatusColor(selectedTicket?.status)}
-              size="small"
-              sx={{ minWidth: 85 }}
-            />
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Typography component="div" variant="h6">
+            Ticket Details
+              </Typography>
+              <Chip 
+                label={selectedTicket?.status || 'PENDING'} 
+                color={getStatusColor(selectedTicket?.status)}
+                size="small"
+                sx={{ minWidth: 85 }}
+              />
+            </Box>
           </DialogTitle>
           <DialogContent dividers>
             {selectedTicket && (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 1 }}>
                 {/* Request Information */}
-                <Typography variant="h6" color="primary" sx={{ mt: 1 }}>
+                <Typography component="div" variant="h6" color="primary" sx={{ mt: 1 }}>
                   Request Information
                 </Typography>
                 <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
-                  <Typography><strong>Name:</strong> {selectedTicket.name || 'N/A'}</Typography>
-                  <Typography><strong>Date:</strong> {selectedTicket.dateOfRequest ? new Date(selectedTicket.dateOfRequest).toLocaleDateString() : 'N/A'}</Typography>
-                  <Typography><strong>Office:</strong> {selectedTicket.office || 'N/A'}</Typography>
+                <Typography><strong>Name:</strong> {selectedTicket.name || 'N/A'}</Typography>
+                  <Typography><strong>Date:</strong> {selectedTicket.createdAt ? new Date(selectedTicket.createdAt).toLocaleDateString() : 'N/A'}</Typography>
+                  <Typography><strong>Department:</strong> {selectedTicket.department || 'N/A'}</Typography>
                   <Typography><strong>Contact:</strong> {selectedTicket.email || 'N/A'}</Typography>
-                  <Typography><strong>Equipment Type:</strong> {selectedTicket.typeOfEquipment || 'N/A'}</Typography>
-                  <Typography><strong>Model:</strong> {selectedTicket.modelOfEquipment || 'N/A'}</Typography>
-                  <Typography><strong>Serial No:</strong> {selectedTicket.serialNo || 'N/A'}</Typography>
+                  
+                  {selectedTicket.category === 'ACCOUNT_MANAGEMENT' ? (
+                    <>
+                      <Typography><strong>Request Type:</strong> {selectedTicket.type || 'N/A'}</Typography>
+                      <Typography><strong>Account Type:</strong> {selectedTicket.accountType || 'N/A'}</Typography>
+                      {selectedTicket.position && (
+                        <Typography><strong>Position:</strong> {selectedTicket.position}</Typography>
+                      )}
+                      {selectedTicket.employeeId && (
+                        <Typography><strong>Employee ID:</strong> {selectedTicket.employeeId}</Typography>
+                      )}
+                    </>
+                  ) : selectedTicket.category === 'TROUBLESHOOTING' ? (
+                    <>
+                <Typography><strong>Equipment Type:</strong> {selectedTicket.typeOfEquipment || 'N/A'}</Typography>
+                <Typography><strong>Model:</strong> {selectedTicket.modelOfEquipment || 'N/A'}</Typography>
+                <Typography><strong>Serial No:</strong> {selectedTicket.serialNo || 'N/A'}</Typography>
+                    </>
+                  ) : selectedTicket.category === 'DOCUMENT_UPLOAD' ? (
+                    <>
+                      <Typography><strong>Document Title:</strong> {selectedTicket.documentTitle || 'N/A'}</Typography>
+                      <Typography><strong>Document Type:</strong> {selectedTicket.documentType || 'N/A'}</Typography>
+                    </>
+                  ) : null}
                 </Box>
 
-                <Typography><strong>Problem Description:</strong></Typography>
+                <Typography sx={{ mt: 2 }}><strong>{
+                  selectedTicket.category === 'TROUBLESHOOTING' ? 'Problem Description:' :
+                  selectedTicket.category === 'ACCOUNT_MANAGEMENT' ? 'Request Reason:' :
+                  selectedTicket.category === 'DOCUMENT_UPLOAD' ? 'Document Description:' :
+                  'Description:'
+                }</strong></Typography>
                 <Paper variant="outlined" sx={{ p: 2, bgcolor: '#f8f9fa' }}>
-                  <Typography>{selectedTicket.specificProblem || 'N/A'}</Typography>
+                  <Typography>{
+                    selectedTicket.category === 'TROUBLESHOOTING' ? selectedTicket.specificProblem :
+                    selectedTicket.category === 'ACCOUNT_MANAGEMENT' ? selectedTicket.reason :
+                    selectedTicket.category === 'DOCUMENT_UPLOAD' ? selectedTicket.documentDescription :
+                    'N/A'
+                  }</Typography>
                 </Paper>
 
                 {/* Technical Assessment */}
-                <Typography variant="h6" color="primary" sx={{ mt: 2 }}>
+                <Typography component="div" variant="h6" color="primary" sx={{ mt: 2 }}>
                   Technical Assessment
                 </Typography>
                 
@@ -343,10 +466,10 @@ function AdminTickets() {
                 />
 
                 {/* Status Update */}
-                <Typography variant="h6" color="primary" sx={{ mt: 2 }}>
+                <Typography component="div" variant="h6" color="primary" sx={{ mt: 2 }}>
                   Status Update
                 </Typography>
-
+                
                 <FormControl fullWidth>
                   <InputLabel>Status</InputLabel>
                   <Select

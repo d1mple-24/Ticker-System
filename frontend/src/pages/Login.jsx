@@ -10,6 +10,7 @@ import {
   InputAdornment,
   IconButton,
   Alert,
+  CircularProgress,
 } from '@mui/material';
 import {
   Visibility as VisibilityIcon,
@@ -17,11 +18,16 @@ import {
   AccountCircle as AccountCircleIcon,
   Lock as LockIcon,
 } from '@mui/icons-material';
+import { useAuth } from '../context/AuthContext';
+
+const API_BASE_URL = 'http://localhost:5000/api';
 
 const Login = () => {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -33,21 +39,16 @@ const Login = () => {
       ...prev,
       [name]: value,
     }));
-    setError(''); // Clear error when user types
-  };
-
-  const getDepartmentBase = (department) => {
-    if (department.includes('Administrative Services')) return 'Administrative Services';
-    if (department.includes('Finance Services')) return 'Finance Services';
-    if (department.includes('Curriculum Implementation Division')) return 'Curriculum Implementation Division (CID)';
-    if (department.includes('School Governance and Operations Division')) return 'School Governance and Operations Division (SGOD)';
-    return department;
+    setError('');
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
+    setError('');
+
     try {
-      const response = await fetch('http://localhost:5000/api/auth/login', {
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -57,24 +58,23 @@ const Login = () => {
 
       const data = await response.json();
 
-      if (!response.ok) {
+      if (!data.success) {
         throw new Error(data.message || 'Login failed');
       }
 
-      // Store the token and user data in localStorage
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
-
-      // Redirect based on user role and department
-      if (data.user.role === 'ADMIN') {
-        navigate('/admin/tickets');
-      } else {
-        // For regular users, store their department base for filtering
-        localStorage.setItem('departmentBase', getDepartmentBase(data.user.department));
-        navigate('/my-tickets');
+      // Check if user is admin
+      if (data.data.user.role !== 'ADMIN') {
+        throw new Error('Access denied. Admin access only.');
       }
+
+      // Use the login function from AuthContext
+      login(data.data.user, data.data.token);
+      navigate('/admin');
     } catch (err) {
+      console.error('Login error:', err);
       setError(err.message || 'Failed to login. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -107,10 +107,10 @@ const Login = () => {
         />
 
         <Typography variant="h5" align="center" gutterBottom>
-          TICKETING SYSTEM
+          ADMIN PANEL
         </Typography>
         <Typography variant="subtitle1" align="center" sx={{ mb: 4 }}>
-          Login
+          Administrator Login
         </Typography>
 
         {error && (
@@ -122,8 +122,9 @@ const Login = () => {
         <Box component="form" onSubmit={handleSubmit} sx={{ width: '100%' }}>
           <TextField
             fullWidth
+            required
             name="email"
-            placeholder="Email"
+            label="Admin Email"
             type="email"
             value={formData.email}
             onChange={handleChange}
@@ -139,9 +140,10 @@ const Login = () => {
 
           <TextField
             fullWidth
+            required
             name="password"
+            label="Password"
             type={showPassword ? 'text' : 'password'}
-            placeholder="Password"
             value={formData.password}
             onChange={handleChange}
             sx={{ mb: 3 }}
@@ -169,9 +171,10 @@ const Login = () => {
             variant="contained"
             size="large"
             type="submit"
+            disabled={loading}
             sx={{ mb: 2 }}
           >
-            LOGIN
+            {loading ? <CircularProgress size={24} /> : 'LOGIN'}
           </Button>
 
           <Button
@@ -179,6 +182,7 @@ const Login = () => {
             variant="outlined"
             size="large"
             onClick={() => navigate('/')}
+            disabled={loading}
             sx={{
               backgroundColor: '#303f9f',
               color: 'white',
@@ -187,7 +191,7 @@ const Login = () => {
               },
             }}
           >
-            CLIENT SATISFACTION SURVEY
+            BACK TO HOME
           </Button>
         </Box>
       </Paper>

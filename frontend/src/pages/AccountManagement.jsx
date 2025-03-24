@@ -4,8 +4,6 @@ import {
   Paper,
   Typography,
   Box,
-  Tabs,
-  Tab,
   TextField,
   Button,
   Alert,
@@ -13,243 +11,303 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  useTheme,
+  CircularProgress,
 } from '@mui/material';
-
-const TabPanel = ({ children, value, index }) => {
-  return (
-    <div hidden={value !== index} style={{ marginTop: 24 }}>
-      {value === index && children}
-    </div>
-  );
-};
+import axios from 'axios';
+import BackButton from '../components/BackButton';
 
 const AccountManagement = () => {
-  const [tabValue, setTabValue] = useState(0);
-  const [message, setMessage] = useState(null);
-  const [createAccountForm, setCreateAccountForm] = useState({
+  const theme = useTheme();
+  const [formData, setFormData] = useState({
     name: '',
     email: '',
-    employeeId: '',
-    department: '',
-    position: '',
+    priority: 'MEDIUM',
+    accountType: '',
+    actionType: '',
+    subject: '',
+    message: '',
   });
-  const [resetPasswordForm, setResetPasswordForm] = useState({
-    email: '',
-    employeeId: '',
-  });
+  const [message, setMessage] = useState(null);
+  const [ticketInfo, setTicketInfo] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const departments = [
-    'CID (Curriculum Implementation Division)',
-    'SGOD (School Governance and Operations Division)',
-    'Administrative Office',
-    'Finance',
-    'ICT Unit',
-    'Other'
-  ];
-
-  const positions = [
-    'Teacher',
-    'Principal',
-    'Supervisor',
-    'Administrative Officer',
-    'IT Staff',
-    'Other'
-  ];
-
-  const handleTabChange = (event, newValue) => {
-    setTabValue(newValue);
-    setMessage(null);
-  };
-
-  const handleCreateAccountChange = (e) => {
+  const handleChange = (e) => {
     const { name, value } = e.target;
-    setCreateAccountForm(prev => ({
+    setFormData(prev => ({
       ...prev,
       [name]: value
     }));
   };
 
-  const handleResetPasswordChange = (e) => {
-    const { name, value } = e.target;
-    setResetPasswordForm(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-
-  const handleCreateAccount = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setIsSubmitting(true);
     try {
-      // This would normally make an API call
-      console.log('Creating account with:', createAccountForm);
+      const response = await axios.post('http://localhost:5000/api/tickets/account-management', {
+        category: 'ACCOUNT_MANAGEMENT',
+        name: formData.name,
+        email: formData.email,
+        priority: formData.priority,
+        accountType: formData.accountType,
+        actionType: formData.actionType,
+        subject: formData.subject,
+        message: formData.message
+      });
+
+      const { ticketId, trackingId } = response.data;
+      setTicketInfo({ ticketId, trackingId });
+      
       setMessage({
         type: 'success',
-        text: 'Account creation request submitted. Please wait for admin approval.',
+        text: `Account management request submitted successfully! Your Ticket ID is #${ticketId} and Tracking ID is ${trackingId}. Please save these for future reference. An email has been sent to ${formData.email} with your ticket details.`,
       });
+
       // Reset form
-      setCreateAccountForm({
+      setFormData({
         name: '',
         email: '',
-        employeeId: '',
-        department: '',
-        position: '',
+        priority: 'MEDIUM',
+        accountType: '',
+        actionType: '',
+        subject: '',
+        message: '',
       });
     } catch (error) {
+      console.error('Error submitting request:', error);
       setMessage({
         type: 'error',
-        text: 'Failed to submit account request. Please try again.',
+        text: error.response?.data?.message || 'Failed to submit request. Please try again.',
       });
-    }
-  };
-
-  const handleResetPassword = async (e) => {
-    e.preventDefault();
-    try {
-      // This would normally make an API call
-      console.log('Resetting password for:', resetPasswordForm);
-      setMessage({
-        type: 'success',
-        text: 'Password reset instructions have been sent to your email.',
-      });
-      // Reset form
-      setResetPasswordForm({
-        email: '',
-        employeeId: '',
-      });
-    } catch (error) {
-      setMessage({
-        type: 'error',
-        text: 'Failed to request password reset. Please try again.',
-      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
-      <Typography variant="h4" gutterBottom align="center">
-        Account Management
-      </Typography>
+    <Container maxWidth="md" sx={{ mt: 4, mb: 4, position: 'relative' }}>
+      <BackButton />
+      <Box sx={{ 
+        textAlign: 'center', 
+        mb: 4,
+        '& h4': {
+          color: theme.palette.primary.main,
+          fontWeight: 600,
+          position: 'relative',
+          display: 'inline-block',
+          '&:after': {
+            content: '""',
+            position: 'absolute',
+            bottom: -8,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            width: '60%',
+            height: 4,
+            backgroundColor: theme.palette.primary.main,
+            borderRadius: 2,
+          }
+        }
+      }}>
+        <Typography variant="h4" gutterBottom>
+          Account Management
+        </Typography>
+      </Box>
 
-      <Paper sx={{ p: 4 }}>
-        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          <Tabs value={tabValue} onChange={handleTabChange} centered>
-            <Tab label="Create Account" />
-            <Tab label="Reset Password" />
-          </Tabs>
-        </Box>
-
+      <Paper elevation={3} sx={{ 
+        p: { xs: 2, sm: 3, md: 4 },
+        borderRadius: 2,
+        bgcolor: '#ffffff',
+        position: 'relative',
+        '&::after': isSubmitting ? {
+          content: '""',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(255, 255, 255, 0.7)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1,
+        } : {}
+      }}>
         {message && (
-          <Alert severity={message.type} sx={{ mt: 2 }}>
+          <Alert 
+            severity={message.type} 
+            sx={{ 
+              mb: 3,
+              borderRadius: 1,
+              '& .MuiAlert-icon': {
+                fontSize: '1.5rem'
+              }
+            }}
+          >
             {message.text}
+            {ticketInfo && (
+              <Box sx={{ mt: 2, p: 2, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid' }}>
+                <Typography variant="body2" gutterBottom>
+                  <strong>Ticket ID:</strong> #{ticketInfo.ticketId}
+                </Typography>
+                <Typography variant="body2">
+                  <strong>Tracking ID:</strong> {ticketInfo.trackingId}
+                </Typography>
+                <Typography variant="body2" sx={{ mt: 1, color: 'text.secondary' }}>
+                  Please save these details for tracking your ticket status.
+                </Typography>
+              </Box>
+            )}
           </Alert>
         )}
 
-        <TabPanel value={tabValue} index={0}>
-          <form onSubmit={handleCreateAccount}>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              <TextField
-                required
-                label="Full Name"
-                name="name"
-                value={createAccountForm.name}
-                onChange={handleCreateAccountChange}
-                variant="outlined"
-                placeholder="Enter your full name"
-              />
-              <TextField
-                required
-                label="Email"
-                name="email"
-                type="email"
-                value={createAccountForm.email}
-                onChange={handleCreateAccountChange}
-                variant="outlined"
-                placeholder="Enter your email address"
-              />
-              <TextField
-                required
-                label="Employee ID"
-                name="employeeId"
-                value={createAccountForm.employeeId}
-                onChange={handleCreateAccountChange}
-                variant="outlined"
-                placeholder="Enter your employee ID"
-              />
-              <FormControl required fullWidth>
-                <InputLabel>Department/Section</InputLabel>
-                <Select
-                  name="department"
-                  value={createAccountForm.department}
-                  onChange={handleCreateAccountChange}
-                  label="Department/Section"
-                >
-                  {departments.map((dept) => (
-                    <MenuItem key={dept} value={dept}>
-                      {dept}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              <FormControl required fullWidth>
-                <InputLabel>Position</InputLabel>
-                <Select
-                  name="position"
-                  value={createAccountForm.position}
-                  onChange={handleCreateAccountChange}
-                  label="Position"
-                >
-                  {positions.map((pos) => (
-                    <MenuItem key={pos} value={pos}>
-                      {pos}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              <Button
-                type="submit"
-                variant="contained"
-                size="large"
-                sx={{ mt: 2 }}
-              >
-                Submit Account Request
-              </Button>
-            </Box>
-          </form>
-        </TabPanel>
+        <form onSubmit={handleSubmit}>
+          <Box sx={{ 
+            display: 'grid', 
+            gap: 3,
+            gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' },
+            '& .full-width': {
+              gridColumn: { xs: '1', sm: '1 / -1' }
+            }
+          }}>
+            <TextField
+              required
+              label="Name"
+              name="name"
+              value={formData.name}
+              onChange={handleChange}
+              variant="outlined"
+              disabled={isSubmitting}
+              sx={{ '& .MuiInputBase-input': { fontSize: '0.9rem' } }}
+            />
 
-        <TabPanel value={tabValue} index={1}>
-          <form onSubmit={handleResetPassword}>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              <TextField
-                required
-                label="Email"
-                name="email"
-                type="email"
-                value={resetPasswordForm.email}
-                onChange={handleResetPasswordChange}
-                variant="outlined"
-                placeholder="Enter your email address"
-              />
-              <TextField
-                required
-                label="Employee ID"
-                name="employeeId"
-                value={resetPasswordForm.employeeId}
-                onChange={handleResetPasswordChange}
-                variant="outlined"
-                placeholder="Enter your employee ID"
-              />
-              <Button
-                type="submit"
-                variant="contained"
-                size="large"
-                sx={{ mt: 2 }}
+            <TextField
+              required
+              label="Email"
+              name="email"
+              type="email"
+              value={formData.email}
+              onChange={handleChange}
+              variant="outlined"
+              disabled={isSubmitting}
+              sx={{ '& .MuiInputBase-input': { fontSize: '0.9rem' } }}
+            />
+
+            <FormControl required>
+              <InputLabel>Priority</InputLabel>
+              <Select
+                name="priority"
+                value={formData.priority}
+                onChange={handleChange}
+                label="Priority"
+                disabled={isSubmitting}
+                sx={{ fontSize: '0.9rem' }}
               >
-                Request Password Reset
-              </Button>
-            </Box>
-          </form>
-        </TabPanel>
+                <MenuItem value="HIGH">High</MenuItem>
+                <MenuItem value="MEDIUM">Medium</MenuItem>
+                <MenuItem value="LOW">Low</MenuItem>
+              </Select>
+            </FormControl>
+
+            <FormControl required>
+              <InputLabel>Account Type</InputLabel>
+              <Select
+                name="accountType"
+                value={formData.accountType}
+                onChange={handleChange}
+                label="Account Type"
+                disabled={isSubmitting}
+                sx={{ fontSize: '0.9rem' }}
+              >
+                <MenuItem value="GMAIL">Gmail Account</MenuItem>
+                <MenuItem value="M365">M365 Account</MenuItem>
+                <MenuItem value="LIS">LIS Account</MenuItem>
+                <MenuItem value="LMS">LMS Account</MenuItem>
+                <MenuItem value="ADOBE">Adobe Account</MenuItem>
+              </Select>
+            </FormControl>
+
+            <FormControl required>
+              <InputLabel>Action Type</InputLabel>
+              <Select
+                name="actionType"
+                value={formData.actionType}
+                onChange={handleChange}
+                label="Action Type"
+                disabled={isSubmitting}
+                sx={{ fontSize: '0.9rem' }}
+              >
+                <MenuItem value="CREATE">Create Password</MenuItem>
+                <MenuItem value="RESET">Reset Password</MenuItem>
+              </Select>
+            </FormControl>
+
+            <TextField
+              required
+              label="Subject"
+              name="subject"
+              value={formData.subject}
+              onChange={handleChange}
+              variant="outlined"
+              disabled={isSubmitting}
+              sx={{ '& .MuiInputBase-input': { fontSize: '0.9rem' } }}
+            />
+
+            <TextField
+              required
+              multiline
+              rows={4}
+              label="Message"
+              name="message"
+              value={formData.message}
+              onChange={handleChange}
+              disabled={isSubmitting}
+              className="full-width"
+              sx={{ 
+                '& .MuiInputBase-input': { 
+                  fontSize: '0.9rem',
+                  lineHeight: '1.5'
+                } 
+              }}
+            />
+
+            <Button
+              type="submit"
+              variant="contained"
+              size="large"
+              className="full-width"
+              disabled={isSubmitting}
+              sx={{
+                mt: 2,
+                py: 1.5,
+                fontSize: '1rem',
+                fontWeight: 600,
+                textTransform: 'none',
+                borderRadius: 1.5,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                '&:hover': {
+                  boxShadow: '0 6px 16px rgba(0,0,0,0.2)',
+                },
+                position: 'relative',
+                '& .MuiCircularProgress-root': {
+                  position: 'absolute',
+                  top: '50%',
+                  left: '50%',
+                  marginTop: '-12px',
+                  marginLeft: '-12px',
+                }
+              }}
+            >
+              {isSubmitting ? (
+                <>
+                  <CircularProgress size={24} color="inherit" />
+                  <span style={{ opacity: 0 }}>Submit Request</span>
+                </>
+              ) : (
+                'Submit Request'
+              )}
+            </Button>
+          </Box>
+        </form>
       </Paper>
     </Container>
   );

@@ -23,22 +23,46 @@ model User {
 }
 
 model Ticket {
-  id              Int      @id @default(autoincrement())
-  name            String
-  email           String
-  department      String
-  dateOfRequest   DateTime @default(now())
-  typeOfEquipment String
-  modelOfEquipment String
-  serialNo        String
-  specificProblem String   @db.Text
-  status          String   @default("PENDING")
-  response        String?  @db.Text
-  user            User     @relation(fields: [userId], references: [id])
-  userId          Int
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  comments        Comment[]
+  id                    Int       @id @default(autoincrement())
+  category              String?    // TROUBLESHOOTING, ACCOUNT_MANAGEMENT, DOCUMENT_UPLOAD
+  name                  String?
+  email                 String?
+  priority              String?    // HIGH, MEDIUM, LOW
+  status                String?    @default("PENDING") // PENDING, IN_PROGRESS, RESOLVED, CLOSED
+  trackingId            String?    @unique
+  createdAt             DateTime?  @default(now())
+  updatedAt             DateTime?  @updatedAt
+
+  // Troubleshooting specific fields
+  location              String?   // SDO - Imus City, School - Imus City
+  dateOfRequest         DateTime?
+  typeOfEquipment       String?
+  modelOfEquipment      String?
+  serialNo              String?
+  specificProblem       String?
+
+  // Account Management specific fields
+  accountType           String?   // Gmail Account, M365 Account, LIS Account, LMS Account, Adobe Account
+  actionType            String?   // CREATE, RESET
+  subject               String?
+  message               String?
+
+  // Document Upload specific fields
+  documentSubject       String?   // For document upload tickets
+  documentMessage       String?   // For document upload tickets
+
+  // Category specific details stored as JSON
+  categorySpecificDetails Json?
+
+  // Relations
+  user        User?    @relation(fields: [userId], references: [id])
+  userId      Int?
+  comments    Comment[]
+
+  @@index([category])
+  @@index([status])
+  @@index([email])
+  @@index([trackingId])
 }
 
 model Comment {

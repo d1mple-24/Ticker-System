@@ -1,87 +1,145 @@
 import express from 'express';
 import { authenticateToken, isAdmin } from '../middleware/auth.js';
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcrypt';
+import { z } from 'zod';
 
-const prisma = new PrismaClient()
-
+const prisma = new PrismaClient();
 const router = express.Router();
+
+// Cache configuration
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+let statsCache = null;
+let lastStatsUpdate = null;
+
+// Response helper
+const sendResponse = (res, status, success, message, data = null) => {
+  const response = {
+    success,
+    message,
+    ...(data && { data })
+  };
+  return res.status(status).json(response);
+};
+
+// Input validation schemas
+const userSchema = z.object({
+  name: z.string().min(2, 'Name must be at least 2 characters'),
+  email: z.string().email('Invalid email format'),
+  department: z.string().min(2, 'Department must be at least 2 characters'),
+  role: z.enum(['USER', 'ADMIN'], 'Invalid role')
+});
+
+// Error handling middleware
+const handleError = (res, error) => {
+  console.error('Error:', error);
+  
+  if (error instanceof z.ZodError) {
+    return sendResponse(res, 400, false, 'Validation error', {
+      errors: error.errors.map(err => ({
+        field: err.path.join('.'),
+        message: err.message
+      }))
+    });
+  }
+
+  if (error.code === 'P2002') {
+    return sendResponse(res, 400, false, 'A user with this email already exists');
+  }
+  
+  if (error.code === 'P2025') {
+    return sendResponse(res, 404, false, 'Resource not found');
+  }
+
+  return sendResponse(res, 500, false, 'Internal server error');
+};
 
 // Get dashboard statistics
 router.get('/stats', authenticateToken, isAdmin, async (req, res) => {
   try {
+    const now = Date.now();
+    
+    // Return cached stats if available and not expired
+    if (statsCache && lastStatsUpdate && (now - lastStatsUpdate < CACHE_DURATION)) {
+      return sendResponse(res, 200, true, 'Statistics retrieved from cache', statsCache);
+    }
+
+    // Get total tickets and status counts
     const [
       totalTickets,
       pendingTickets,
       inProgressTickets,
       resolvedTickets,
-      closedTickets,
-      departmentStats,
-      recentTickets
+      closedTickets
     ] = await Promise.all([
-      // Total tickets count
       prisma.ticket.count(),
-      
-      // Status-based counts
-      prisma.ticket.count({
-        where: { status: 'PENDING' }
-      }),
-      prisma.ticket.count({
-        where: { status: 'IN_PROGRESS' }
-      }),
-      prisma.ticket.count({
-        where: { status: 'RESOLVED' }
-      }),
-      prisma.ticket.count({
-        where: { status: 'CLOSED' }
-      }),
-      
-      // Department-wise ticket counts
-      prisma.ticket.groupBy({
-        by: ['office'],
-        _count: {
-          id: true
-        },
-        orderBy: {
-          _count: {
-            id: 'desc'
-          }
-        }
-      }),
-
-      // Recent tickets with user information
-      prisma.ticket.findMany({
-        take: 5,
-        orderBy: {
-          createdAt: 'desc'
-        },
-        include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              department: true
-            }
-          }
-        }
-      })
+      prisma.ticket.count({ where: { status: 'PENDING' } }),
+      prisma.ticket.count({ where: { status: 'IN_PROGRESS' } }),
+      prisma.ticket.count({ where: { status: 'RESOLVED' } }),
+      prisma.ticket.count({ where: { status: 'CLOSED' } })
     ]);
 
-    res.json({
+    // Get status distribution
+    const statusDistribution = await prisma.ticket.groupBy({
+      by: ['status'],
+      _count: {
+        _all: true
+      }
+    });
+
+    // Get category distribution
+    const categoryDistribution = await prisma.ticket.groupBy({
+      by: ['category'],
+      _count: {
+        _all: true
+      }
+    });
+
+    // Get category-specific stats
+    const categoryStats = {
+      TROUBLESHOOTING: await prisma.ticket.count({ where: { category: 'TROUBLESHOOTING' } }),
+      ACCOUNT_MANAGEMENT: await prisma.ticket.count({ where: { category: 'ACCOUNT_MANAGEMENT' } }),
+      DOCUMENT_UPLOAD: await prisma.ticket.count({ where: { category: 'DOCUMENT_UPLOAD' } })
+    };
+
+    // Get recent activity
+    const recentActivity = await prisma.ticket.findMany({
+      take: 10,
+      orderBy: { updatedAt: 'desc' },
+      select: {
+        id: true,
+        category: true,
+        status: true,
+        priority: true,
+        updatedAt: true
+      }
+    });
+
+    const stats = {
       totalTickets,
       pendingTickets,
       inProgressTickets,
       resolvedTickets,
       closedTickets,
-      departmentStats: departmentStats.map(dept => ({
-        department: dept.office,
-        count: dept._count.id
+      statusDistribution: statusDistribution.map(item => ({
+        status: item.status || 'UNKNOWN',
+        count: item._count._all
       })),
-      recentTickets
-    });
+      categoryDistribution: categoryDistribution.map(item => ({
+        category: item.category || 'UNKNOWN',
+        count: item._count._all
+      })),
+      categoryStats,
+      recentActivity
+    };
+
+    // Update cache
+    statsCache = stats;
+    lastStatsUpdate = now;
+
+    return sendResponse(res, 200, true, 'Statistics retrieved successfully', stats);
   } catch (error) {
-    console.error('Error fetching dashboard stats:', error);
-    res.status(500).json({ message: 'Error fetching dashboard statistics' });
+    return handleError(res, error);
   }
 });
 
@@ -103,54 +161,60 @@ router.get('/trends', authenticateToken, isAdmin, async (req, res) => {
       }
     });
 
-    res.json(trends);
+    return sendResponse(res, 200, true, 'Trends retrieved successfully', {
+      trends,
+      period: {
+        start: sevenDaysAgo,
+        end: new Date()
+      }
+    });
   } catch (error) {
-    console.error('Error fetching ticket trends:', error);
-    res.status(500).json({ message: 'Error fetching ticket trends' });
+    return handleError(res, error);
   }
 });
 
 // Get all tickets with user information
 router.get('/tickets', authenticateToken, isAdmin, async (req, res) => {
   try {
-    const { page = 1, limit = 10, status, office } = req.query;
-    const skip = (page - 1) * limit;
+    const { page = 1, limit = 10, status, type } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    // Build the where clause based on filters
+    // Build where clause
     const where = {};
     if (status) where.status = status;
-    if (office) where.office = office;
+    if (type) where.type = type;
 
-    const tickets = await prisma.ticket.findMany({
-      skip: Number(skip),
-      take: Number(limit),
-      where,
-      orderBy: {
-        createdAt: 'desc'
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            department: true
+    const [tickets, total] = await Promise.all([
+      prisma.ticket.findMany({
+        where,
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              department: true
+            }
           }
-        }
+        },
+        skip,
+        take: parseInt(limit),
+        orderBy: { createdAt: 'desc' }
+      }),
+      prisma.ticket.count({ where })
+    ]);
+
+    return sendResponse(res, 200, true, 'Tickets retrieved successfully', {
+      tickets,
+      pagination: {
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        totalPages: Math.ceil(total / parseInt(limit))
       }
     });
-
-    const total = await prisma.ticket.count({ where });
-
-    res.json({
-      tickets,
-      total,
-      page: Number(page),
-      totalPages: Math.ceil(total / limit)
-    });
   } catch (error) {
-    console.error('Error fetching tickets:', error);
-    res.status(500).json({ message: 'Error fetching tickets' });
+    return handleError(res, error);
   }
 });
 
@@ -174,13 +238,125 @@ router.get('/tickets/:id', authenticateToken, isAdmin, async (req, res) => {
     });
 
     if (!ticket) {
-      return res.status(404).json({ message: 'Ticket not found' });
+      return sendResponse(res, 404, false, 'Ticket not found');
     }
 
-    res.json(ticket);
+    return sendResponse(res, 200, true, 'Ticket details retrieved successfully', { ticket });
   } catch (error) {
-    console.error('Error fetching ticket details:', error);
-    res.status(500).json({ message: 'Error fetching ticket details' });
+    return handleError(res, error);
+  }
+});
+
+// Get all users with pagination and filtering
+router.get('/users', authenticateToken, isAdmin, async (req, res) => {
+  try {
+    const { page = 1, limit = 10, search = '' } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const where = search ? {
+      OR: [
+        { name: { contains: search } },
+        { email: { contains: search } },
+        { department: { contains: search } }
+      ]
+    } : {};
+
+    const [users, total] = await Promise.all([
+      prisma.user.findMany({
+        where,
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          department: true,
+          role: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+        skip,
+        take: parseInt(limit),
+        orderBy: { createdAt: 'desc' }
+      }),
+      prisma.user.count({ where })
+    ]);
+
+    return sendResponse(res, 200, true, 'Users retrieved successfully', {
+      users,
+      pagination: {
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        totalPages: Math.ceil(total / parseInt(limit))
+      }
+    });
+  } catch (error) {
+    return handleError(res, error);
+  }
+});
+
+// Create new user
+router.post('/users', authenticateToken, isAdmin, async (req, res) => {
+  try {
+    const validatedData = userSchema.parse(req.body);
+    
+    const user = await prisma.user.create({
+      data: {
+        ...validatedData,
+        password: await bcrypt.hash('defaultPassword123', 10) // You should implement proper password handling
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        department: true,
+        role: true,
+        createdAt: true
+      }
+    });
+
+    return sendResponse(res, 201, true, 'User created successfully', user);
+  } catch (error) {
+    return handleError(res, error);
+  }
+});
+
+// Update user
+router.put('/users/:id', authenticateToken, isAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const validatedData = userSchema.parse(req.body);
+
+    const user = await prisma.user.update({
+      where: { id: parseInt(id) },
+      data: validatedData,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        department: true,
+        role: true,
+        updatedAt: true
+      }
+    });
+
+    return sendResponse(res, 200, true, 'User updated successfully', user);
+  } catch (error) {
+    return handleError(res, error);
+  }
+});
+
+// Delete user
+router.delete('/users/:id', authenticateToken, isAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    await prisma.user.delete({
+      where: { id: parseInt(id) }
+    });
+
+    return sendResponse(res, 200, true, 'User deleted successfully');
+  } catch (error) {
+    return handleError(res, error);
   }
 });
 
