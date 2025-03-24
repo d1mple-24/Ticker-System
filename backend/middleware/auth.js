@@ -47,14 +47,4 @@ export const authenticateToken = async (req, res, next) => {
       message: 'Token verification failed, authorization denied'
     });
   }
-};
-
-export const isAdmin = (req, res, next) => {
-  if (!req.user || req.user.role !== 'ADMIN') {
-    return res.status(403).json({
-      success: false,
-      message: 'Admin access required'
-    });
-  }
-  next();
 }; 

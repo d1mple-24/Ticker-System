@@ -1,70 +1,32 @@
 import express from 'express';
-import { authenticateToken, isAdmin } from '../middleware/auth.js';
+import { authenticateToken } from '../middleware/auth.js';
 import { PrismaClient } from '@prisma/client';
-import bcrypt from 'bcrypt';
-import { z } from 'zod';
 
-const prisma = new PrismaClient();
 const router = express.Router();
+const prisma = new PrismaClient();
 
-// Cache configuration
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
-let statsCache = null;
-let lastStatsUpdate = null;
-
-// Response helper
-const sendResponse = (res, status, success, message, data = null) => {
-  const response = {
-    success,
-    message,
-    ...(data && { data })
-  };
-  return res.status(status).json(response);
-};
-
-// Input validation schemas
-const userSchema = z.object({
-  name: z.string().min(2, 'Name must be at least 2 characters'),
-  email: z.string().email('Invalid email format'),
-  department: z.string().min(2, 'Department must be at least 2 characters'),
-  role: z.enum(['USER', 'ADMIN'], 'Invalid role')
-});
-
-// Error handling middleware
-const handleError = (res, error) => {
-  console.error('Error:', error);
-  
-  if (error instanceof z.ZodError) {
-    return sendResponse(res, 400, false, 'Validation error', {
-      errors: error.errors.map(err => ({
-        field: err.path.join('.'),
-        message: err.message
-      }))
+// Middleware to check if user is admin
+const isAdmin = async (req, res, next) => {
+  try {
+    if (req.user.role !== 'ADMIN') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Admin privileges required.'
+      });
+    }
+    next();
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error checking admin privileges'
     });
   }
-
-  if (error.code === 'P2002') {
-    return sendResponse(res, 400, false, 'A user with this email already exists');
-  }
-  
-  if (error.code === 'P2025') {
-    return sendResponse(res, 404, false, 'Resource not found');
-  }
-
-  return sendResponse(res, 500, false, 'Internal server error');
 };
 
 // Get dashboard statistics
 router.get('/stats', authenticateToken, isAdmin, async (req, res) => {
   try {
-    const now = Date.now();
-    
-    // Return cached stats if available and not expired
-    if (statsCache && lastStatsUpdate && (now - lastStatsUpdate < CACHE_DURATION)) {
-      return sendResponse(res, 200, true, 'Statistics retrieved from cache', statsCache);
-    }
-
-    // Get total tickets and status counts
+    // Get counts for different ticket statuses
     const [
       totalTickets,
       pendingTickets,
@@ -82,39 +44,16 @@ router.get('/stats', authenticateToken, isAdmin, async (req, res) => {
     // Get status distribution
     const statusDistribution = await prisma.ticket.groupBy({
       by: ['status'],
-      _count: {
-        _all: true
-      }
+      _count: true
     });
 
     // Get category distribution
     const categoryDistribution = await prisma.ticket.groupBy({
       by: ['category'],
-      _count: {
-        _all: true
-      }
+      _count: true
     });
 
-    // Get category-specific stats
-    const categoryStats = {
-      TROUBLESHOOTING: await prisma.ticket.count({ where: { category: 'TROUBLESHOOTING' } }),
-      ACCOUNT_MANAGEMENT: await prisma.ticket.count({ where: { category: 'ACCOUNT_MANAGEMENT' } }),
-      DOCUMENT_UPLOAD: await prisma.ticket.count({ where: { category: 'DOCUMENT_UPLOAD' } })
-    };
-
-    // Get recent activity
-    const recentActivity = await prisma.ticket.findMany({
-      take: 10,
-      orderBy: { updatedAt: 'desc' },
-      select: {
-        id: true,
-        category: true,
-        status: true,
-        priority: true,
-        updatedAt: true
-      }
-    });
-
+    // Format the response data
     const stats = {
       totalTickets,
       pendingTickets,
@@ -122,68 +61,48 @@ router.get('/stats', authenticateToken, isAdmin, async (req, res) => {
       resolvedTickets,
       closedTickets,
       statusDistribution: statusDistribution.map(item => ({
-        status: item.status || 'UNKNOWN',
-        count: item._count._all
+        status: item.status,
+        count: item._count
       })),
       categoryDistribution: categoryDistribution.map(item => ({
-        category: item.category || 'UNKNOWN',
-        count: item._count._all
-      })),
-      categoryStats,
-      recentActivity
+        category: item.category,
+        count: item._count
+      }))
     };
 
-    // Update cache
-    statsCache = stats;
-    lastStatsUpdate = now;
-
-    return sendResponse(res, 200, true, 'Statistics retrieved successfully', stats);
+    res.json({
+      success: true,
+      message: 'Statistics retrieved successfully',
+      data: stats
+    });
   } catch (error) {
-    return handleError(res, error);
+    console.error('Error fetching admin stats:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching dashboard statistics'
+    });
   }
 });
 
-// Get ticket trends (last 7 days)
-router.get('/trends', authenticateToken, isAdmin, async (req, res) => {
-  try {
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-    const trends = await prisma.ticket.groupBy({
-      by: ['createdAt'],
-      where: {
-        createdAt: {
-          gte: sevenDaysAgo
-        }
-      },
-      _count: {
-        id: true
-      }
-    });
-
-    return sendResponse(res, 200, true, 'Trends retrieved successfully', {
-      trends,
-      period: {
-        start: sevenDaysAgo,
-        end: new Date()
-      }
-    });
-  } catch (error) {
-    return handleError(res, error);
-  }
-});
-
-// Get all tickets with user information
+// Get all tickets with pagination and filtering
 router.get('/tickets', authenticateToken, isAdmin, async (req, res) => {
   try {
-    const { page = 1, limit = 10, status, type } = req.query;
+    const { page = 1, limit = 10, status, category, search } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     // Build where clause
     const where = {};
     if (status) where.status = status;
-    if (type) where.type = type;
+    if (category) where.category = category;
+    if (search) {
+      where.OR = [
+        { subject: { contains: search } },
+        { message: { contains: search } },
+        { user: { name: { contains: search } } }
+      ];
+    }
 
+    // Get tickets with pagination
     const [tickets, total] = await Promise.all([
       prisma.ticket.findMany({
         where,
@@ -204,159 +123,68 @@ router.get('/tickets', authenticateToken, isAdmin, async (req, res) => {
       prisma.ticket.count({ where })
     ]);
 
-    return sendResponse(res, 200, true, 'Tickets retrieved successfully', {
-      tickets,
-      pagination: {
-        total,
-        page: parseInt(page),
-        limit: parseInt(limit),
-        totalPages: Math.ceil(total / parseInt(limit))
-      }
-    });
-  } catch (error) {
-    return handleError(res, error);
-  }
-});
-
-// Get single ticket details with user information
-router.get('/tickets/:id', authenticateToken, isAdmin, async (req, res) => {
-  try {
-    const ticket = await prisma.ticket.findUnique({
-      where: {
-        id: Number(req.params.id)
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            department: true
-          }
+    res.json({
+      success: true,
+      message: 'Tickets retrieved successfully',
+      data: {
+        tickets,
+        pagination: {
+          total,
+          page: parseInt(page),
+          limit: parseInt(limit),
+          totalPages: Math.ceil(total / parseInt(limit))
         }
       }
     });
+  } catch (error) {
+    console.error('Error fetching tickets:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching tickets'
+    });
+  }
+});
 
-    if (!ticket) {
-      return sendResponse(res, 404, false, 'Ticket not found');
+// Update ticket status
+router.put('/tickets/:id/status', authenticateToken, isAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    // Validate status
+    const validStatuses = ['PENDING', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid status. Must be one of: PENDING, IN_PROGRESS, RESOLVED, CLOSED'
+      });
     }
 
-    return sendResponse(res, 200, true, 'Ticket details retrieved successfully', { ticket });
-  } catch (error) {
-    return handleError(res, error);
-  }
-});
-
-// Get all users with pagination and filtering
-router.get('/users', authenticateToken, isAdmin, async (req, res) => {
-  try {
-    const { page = 1, limit = 10, search = '' } = req.query;
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-
-    const where = search ? {
-      OR: [
-        { name: { contains: search } },
-        { email: { contains: search } },
-        { department: { contains: search } }
-      ]
-    } : {};
-
-    const [users, total] = await Promise.all([
-      prisma.user.findMany({
-        where,
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          department: true,
-          role: true,
-          createdAt: true,
-          updatedAt: true,
-        },
-        skip,
-        take: parseInt(limit),
-        orderBy: { createdAt: 'desc' }
-      }),
-      prisma.user.count({ where })
-    ]);
-
-    return sendResponse(res, 200, true, 'Users retrieved successfully', {
-      users,
-      pagination: {
-        total,
-        page: parseInt(page),
-        limit: parseInt(limit),
-        totalPages: Math.ceil(total / parseInt(limit))
-      }
-    });
-  } catch (error) {
-    return handleError(res, error);
-  }
-});
-
-// Create new user
-router.post('/users', authenticateToken, isAdmin, async (req, res) => {
-  try {
-    const validatedData = userSchema.parse(req.body);
-    
-    const user = await prisma.user.create({
-      data: {
-        ...validatedData,
-        password: await bcrypt.hash('defaultPassword123', 10) // You should implement proper password handling
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        department: true,
-        role: true,
-        createdAt: true
-      }
-    });
-
-    return sendResponse(res, 201, true, 'User created successfully', user);
-  } catch (error) {
-    return handleError(res, error);
-  }
-});
-
-// Update user
-router.put('/users/:id', authenticateToken, isAdmin, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const validatedData = userSchema.parse(req.body);
-
-    const user = await prisma.user.update({
+    const ticket = await prisma.ticket.update({
       where: { id: parseInt(id) },
-      data: validatedData,
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        department: true,
-        role: true,
-        updatedAt: true
+      data: { 
+        status,
+        updatedAt: new Date()
       }
     });
 
-    return sendResponse(res, 200, true, 'User updated successfully', user);
-  } catch (error) {
-    return handleError(res, error);
-  }
-});
-
-// Delete user
-router.delete('/users/:id', authenticateToken, isAdmin, async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    await prisma.user.delete({
-      where: { id: parseInt(id) }
+    res.json({
+      success: true,
+      message: 'Ticket status updated successfully',
+      data: { ticket }
     });
-
-    return sendResponse(res, 200, true, 'User deleted successfully');
   } catch (error) {
-    return handleError(res, error);
+    console.error('Error updating ticket status:', error);
+    if (error.code === 'P2025') {
+      return res.status(404).json({
+        success: false,
+        message: 'Ticket not found'
+      });
+    }
+    res.status(500).json({
+      success: false,
+      message: 'Error updating ticket status'
+    });
   }
 });
 

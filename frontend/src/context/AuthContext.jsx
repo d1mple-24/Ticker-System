@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import axios from 'axios';
 
 const AuthContext = createContext(null);
 
@@ -16,10 +17,13 @@ export const AuthProvider = ({ children }) => {
         const userData = JSON.parse(storedUser);
         setUser(userData);
         setIsAuthenticated(true);
+        // Set axios default headers
+        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       } catch (error) {
         console.error('Error parsing stored user data:', error);
         localStorage.removeItem('token');
         localStorage.removeItem('user');
+        axios.defaults.headers.common['Authorization'] = null;
       }
     }
   }, []);
@@ -29,6 +33,8 @@ export const AuthProvider = ({ children }) => {
     setIsAuthenticated(true);
     localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify(userData));
+    // Set axios default headers
+    axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
   };
 
   const logout = () => {
@@ -36,6 +42,8 @@ export const AuthProvider = ({ children }) => {
     setIsAuthenticated(false);
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    // Remove axios default headers
+    axios.defaults.headers.common['Authorization'] = null;
   };
 
   const value = {

@@ -20,7 +20,7 @@ import {
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -57,6 +57,7 @@ const Login = () => {
       });
 
       const data = await response.json();
+      console.log('Login response:', data);
 
       if (!data.success) {
         throw new Error(data.message || 'Login failed');
@@ -69,6 +70,7 @@ const Login = () => {
 
       // Use the login function from AuthContext
       login(data.data.user, data.data.token);
+      console.log('Token stored:', data.data.token);
       navigate('/admin');
     } catch (err) {
       console.error('Login error:', err);

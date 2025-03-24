@@ -3,7 +3,8 @@ import {
   createBrowserRouter, 
   RouterProvider,
   createRoutesFromElements,
-  Route 
+  Route,
+  Navigate
 } from 'react-router-dom';
 import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
@@ -17,13 +18,22 @@ import Troubleshooting from './pages/Troubleshooting.jsx';
 import TicketCategories from './pages/TicketCategories.jsx';
 import TrackTicket from './pages/TrackTicket.jsx';
 import Survey from './pages/Survey.jsx';
-import Dashboard from './pages/admin/Dashboard.jsx';
-import AdminTickets from './pages/admin/AdminTickets.jsx';
-import TicketDetails from './pages/admin/TicketDetails.jsx';
 import AccountManagement from './pages/AccountManagement.jsx';
 import DocumentUpload from './pages/DocumentUpload.jsx';
-import ProtectedRoute from './components/ProtectedRoute';
-import Users from './pages/admin/Users';
+import Dashboard from './pages/admin/Dashboard.jsx';
+import ManageTickets from './pages/admin/ManageTickets.jsx';
+
+// Protected Route Component
+const ProtectedRoute = ({ children }) => {
+  const token = localStorage.getItem('token');
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+
+  if (!token || user.role !== 'ADMIN') {
+    return <Navigate to="/login" replace />;
+  }
+
+  return children;
+};
 
 const router = createBrowserRouter(
   createRoutesFromElements(
@@ -39,13 +49,30 @@ const router = createBrowserRouter(
       <Route path="/documents" element={<DocumentUpload />} />
 
       {/* Admin Routes */}
-      <Route path="/admin/*" element={<ProtectedRoute requiredRole="ADMIN" />}>
-        <Route index element={<Dashboard />} />
-        <Route path="dashboard" element={<Dashboard />} />
-        <Route path="tickets" element={<AdminTickets />} />
-        <Route path="tickets/:id" element={<TicketDetails />} />
-        <Route path="users" element={<Users />} />
-      </Route>
+      <Route
+        path="/admin"
+        element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/dashboard"
+        element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/tickets"
+        element={
+          <ProtectedRoute>
+            <ManageTickets />
+          </ProtectedRoute>
+        }
+      />
     </Route>
   )
 );
