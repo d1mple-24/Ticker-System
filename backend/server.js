@@ -2,9 +2,10 @@ import express from 'express';
 import cors from 'cors';
 import { PrismaClient } from '@prisma/client';
 import ticketRoutes from './routes/tickets.js';
-import userRoutes from './routes/users.js';
 import authRoutes from './routes/auth.js';
 import adminRoutes from './routes/admin.js';
+import documentRoutes from './routes/documents.js';
+import publicRoutes from './routes/public.js';
 import dotenv from 'dotenv';
 
 // Load environment variables
@@ -30,9 +31,10 @@ app.use((req, res, next) => {
 
 // Routes
 app.use('/api/tickets', ticketRoutes);
-app.use('/api/users', userRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/documents', documentRoutes);
+app.use('/api', publicRoutes);
 
 // 404 handler
 app.use((req, res) => {

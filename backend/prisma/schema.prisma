@@ -58,6 +58,7 @@ model Ticket {
   user        User?    @relation(fields: [userId], references: [id])
   userId      Int?
   comments    Comment[]
+  updates     TicketUpdate[]
 
   @@index([category])
   @@index([status])
@@ -72,4 +73,18 @@ model Comment {
   ticket    Ticket   @relation(fields: [ticketId], references: [id])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// Add the TicketUpdate model
+model TicketUpdate {
+  id             Int      @id @default(autoincrement())
+  ticketId       Int
+  ticket         Ticket   @relation(fields: [ticketId], references: [id])
+  adminId        Int
+  previousStatus String
+  newStatus      String
+  comment        String   @db.Text
+  createdAt      DateTime @default(now())
+  
+  @@index([ticketId])
 } 

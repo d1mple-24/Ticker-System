@@ -236,7 +236,7 @@ const AccountManagement = () => {
                 disabled={isSubmitting}
                 sx={{ fontSize: '0.9rem' }}
               >
-                <MenuItem value="CREATE">Create Password</MenuItem>
+                <MenuItem value="CREATE">Create Account</MenuItem>
                 <MenuItem value="RESET">Reset Password</MenuItem>
               </Select>
             </FormControl>

@@ -10,6 +10,7 @@ import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import theme from './theme';
 import { AuthProvider } from './context/AuthContext';
+import AdminLayout from './layouts/AdminLayout';
 
 // Components
 import Home from './pages/Home.jsx';
@@ -22,6 +23,9 @@ import AccountManagement from './pages/AccountManagement.jsx';
 import DocumentUpload from './pages/DocumentUpload.jsx';
 import Dashboard from './pages/admin/Dashboard.jsx';
 import ManageTickets from './pages/admin/ManageTickets.jsx';
+import TicketDetails from './pages/admin/TicketDetails';
+import Reports from './pages/admin/Reports';
+import Settings from './pages/admin/Settings';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -49,30 +53,14 @@ const router = createBrowserRouter(
       <Route path="/documents" element={<DocumentUpload />} />
 
       {/* Admin Routes */}
-      <Route
-        path="/admin"
-        element={
-          <ProtectedRoute>
-            <Dashboard />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/dashboard"
-        element={
-          <ProtectedRoute>
-            <Dashboard />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/tickets"
-        element={
-          <ProtectedRoute>
-            <ManageTickets />
-          </ProtectedRoute>
-        }
-      />
+      <Route path="/admin" element={<ProtectedRoute allowedRoles={["ADMIN"]}><AdminLayout /></ProtectedRoute>}>
+        <Route index element={<Dashboard />} />
+        <Route path="dashboard" element={<Dashboard />} />
+        <Route path="tickets" element={<ManageTickets />} />
+        <Route path="tickets/:id" element={<TicketDetails />} />
+        <Route path="reports" element={<Reports />} />
+        <Route path="settings" element={<Settings />} />
+      </Route>
     </Route>
   )
 );

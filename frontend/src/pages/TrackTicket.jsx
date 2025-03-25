@@ -24,6 +24,7 @@ import {
   Category as CategoryIcon,
   PriorityHigh as PriorityIcon,
   Info as InfoIcon,
+  Download as DownloadIcon,
 } from '@mui/icons-material';
 
 const API_BASE_URL = 'http://localhost:5000/api';
@@ -77,6 +78,43 @@ const TrackTicket = () => {
     } catch (error) {
       console.error('Error tracking ticket:', error);
       setError(error.response?.data?.message || error.message || 'Failed to track ticket');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle document download
+  const handleDownload = async () => {
+    try {
+      setLoading(true);
+      // Check if file path is available in categorySpecificDetails
+      let filePath = null;
+      let fileName = null;
+      
+      if (ticket.categorySpecificDetails?.details?.fileName) {
+        filePath = ticket.categorySpecificDetails.details.fileName;
+        fileName = ticket.categorySpecificDetails.details.originalFileName || filePath;
+      }
+      
+      if (!filePath) {
+        throw new Error('No document attached to this ticket');
+      }
+      
+      const response = await axios.get(`${API_BASE_URL}/documents/public/${filePath}`, {
+        responseType: 'blob',
+      });
+
+      // Create a download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', fileName);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      console.error('Download error:', err);
+      setError(err.message || 'Failed to download document');
     } finally {
       setLoading(false);
     }
@@ -210,7 +248,7 @@ const TrackTicket = () => {
               </Typography>
               <Grid container spacing={2}>
                 {Object.entries(ticket.categorySpecificDetails.details).map(([key, value]) => {
-                  if (!value) return null;
+                  if (!value || key === 'fileName' || key === 'filePath' || key === 'originalFileName' || key === 'fileType' || key === 'fileSize') return null;
                   return (
                     <Grid item xs={12} sm={6} key={key}>
                       <Typography variant="body2">
@@ -221,6 +259,22 @@ const TrackTicket = () => {
                   );
                 })}
               </Grid>
+              
+              {/* Document Download Button */}
+              {ticket.category === 'DOCUMENT_UPLOAD' && ticket.categorySpecificDetails?.details?.fileName && (
+                <Box sx={{ mt: 2 }}>
+                  <Button
+                    variant="outlined"
+                    color="primary"
+                    startIcon={<DownloadIcon />}
+                    onClick={handleDownload}
+                    disabled={loading}
+                    size="small"
+                  >
+                    {loading ? 'Downloading...' : `Download ${ticket.categorySpecificDetails.details.originalFileName || 'Attached Document'}`}
+                  </Button>
+                </Box>
+              )}
             </Box>
           )}
 

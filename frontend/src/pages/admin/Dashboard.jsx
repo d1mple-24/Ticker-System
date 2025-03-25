@@ -30,7 +30,6 @@ import {
   Pie,
   Cell,
 } from 'recharts';
-import AdminLayout from '../../layouts/AdminLayout';
 import axios from 'axios';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
@@ -126,131 +125,127 @@ const Dashboard = () => {
 
   if (loading) {
     return (
-      <AdminLayout>
-        <Box
-          sx={{
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            height: '50vh',
-          }}
-        >
-          <CircularProgress />
-        </Box>
-      </AdminLayout>
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          height: '50vh',
+        }}
+      >
+        <CircularProgress />
+      </Box>
     );
   }
 
   return (
-    <AdminLayout>
-      <Box sx={{ mb: 4 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
-          <Typography variant="h4" color="text.primary" gutterBottom>
-            Dashboard Overview
-          </Typography>
-          <Tooltip title="Refresh data">
-            <IconButton onClick={fetchDashboardData} disabled={loading}>
-              <RefreshIcon />
-            </IconButton>
-          </Tooltip>
-        </Box>
-
-        {error && (
-          <Typography color="error" sx={{ mb: 2 }}>
-            {error}
-          </Typography>
-        )}
-
-        <Grid container spacing={3}>
-          {/* Statistics Cards */}
-          <Grid item xs={12} sm={6} md={3}>
-            <StatCard
-              title="Total Tickets"
-              value={stats.totalTickets}
-              icon={<TicketIcon sx={{ color: COLORS.primary }} />}
-              color={COLORS.primary}
-            />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <StatCard
-              title="Pending"
-              value={stats.pendingTickets}
-              icon={<PendingIcon sx={{ color: COLORS.warning }} />}
-              color={COLORS.warning}
-            />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <StatCard
-              title="Resolved"
-              value={stats.resolvedTickets}
-              icon={<ResolvedIcon sx={{ color: COLORS.success }} />}
-              color={COLORS.success}
-            />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <StatCard
-              title="In Progress"
-              value={stats.inProgressTickets}
-              icon={<TimelineIcon sx={{ color: COLORS.info }} />}
-              color={COLORS.info}
-            />
-          </Grid>
-
-          {/* Charts */}
-          <Grid item xs={12} md={6}>
-            <Paper sx={{ p: 3, height: '400px' }}>
-              <Typography variant="h6" gutterBottom>
-                Ticket Status Distribution
-              </Typography>
-              <ResponsiveContainer width="100%" height="90%">
-                <PieChart>
-                  <Pie
-                    data={stats.statusDistribution}
-                    dataKey="count"
-                    nameKey="status"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={120}
-                    label
-                  >
-                    {stats.statusDistribution.map((entry, index) => (
-                      <Cell
-                        key={`cell-${index}`}
-                        fill={Object.values(COLORS)[index % Object.values(COLORS).length]}
-                      />
-                    ))}
-                  </Pie>
-                  <ChartTooltip />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </Paper>
-          </Grid>
-
-          <Grid item xs={12} md={6}>
-            <Paper sx={{ p: 3, height: '400px' }}>
-              <Typography variant="h6" gutterBottom>
-                Tickets by Category
-              </Typography>
-              <ResponsiveContainer width="100%" height="90%">
-                <BarChart data={stats.categoryDistribution}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="category" />
-                  <YAxis />
-                  <ChartTooltip />
-                  <Legend />
-                  <Bar
-                    dataKey="count"
-                    fill={COLORS.primary}
-                    name="Number of Tickets"
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </Paper>
-          </Grid>
-        </Grid>
+    <Box sx={{ mb: 4 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
+        <Typography variant="h4" color="text.primary" gutterBottom>
+          Dashboard Overview
+        </Typography>
+        <Tooltip title="Refresh data">
+          <IconButton onClick={fetchDashboardData} disabled={loading}>
+            <RefreshIcon />
+          </IconButton>
+        </Tooltip>
       </Box>
-    </AdminLayout>
+
+      {error && (
+        <Typography color="error" sx={{ mb: 2 }}>
+          {error}
+        </Typography>
+      )}
+
+      <Grid container spacing={3}>
+        {/* Statistics Cards */}
+        <Grid item xs={12} sm={6} md={3}>
+          <StatCard
+            title="Total Tickets"
+            value={stats.totalTickets}
+            icon={<TicketIcon sx={{ color: COLORS.primary }} />}
+            color={COLORS.primary}
+          />
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <StatCard
+            title="Pending"
+            value={stats.pendingTickets}
+            icon={<PendingIcon sx={{ color: COLORS.warning }} />}
+            color={COLORS.warning}
+          />
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <StatCard
+            title="Resolved"
+            value={stats.resolvedTickets}
+            icon={<ResolvedIcon sx={{ color: COLORS.success }} />}
+            color={COLORS.success}
+          />
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <StatCard
+            title="In Progress"
+            value={stats.inProgressTickets}
+            icon={<TimelineIcon sx={{ color: COLORS.info }} />}
+            color={COLORS.info}
+          />
+        </Grid>
+
+        {/* Charts */}
+        <Grid item xs={12} md={6}>
+          <Paper sx={{ p: 3, height: '400px' }}>
+            <Typography variant="h6" gutterBottom>
+              Ticket Status Distribution
+            </Typography>
+            <ResponsiveContainer width="100%" height="90%">
+              <PieChart>
+                <Pie
+                  data={stats.statusDistribution}
+                  dataKey="count"
+                  nameKey="status"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={120}
+                  label
+                >
+                  {stats.statusDistribution.map((entry, index) => (
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={Object.values(COLORS)[index % Object.values(COLORS).length]}
+                    />
+                  ))}
+                </Pie>
+                <ChartTooltip />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </Paper>
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <Paper sx={{ p: 3, height: '400px' }}>
+            <Typography variant="h6" gutterBottom>
+              Tickets by Category
+            </Typography>
+            <ResponsiveContainer width="100%" height="90%">
+              <BarChart data={stats.categoryDistribution}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="category" />
+                <YAxis />
+                <ChartTooltip />
+                <Legend />
+                <Bar
+                  dataKey="count"
+                  fill={COLORS.primary}
+                  name="Number of Tickets"
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </Paper>
+        </Grid>
+      </Grid>
+    </Box>
   );
 };
 

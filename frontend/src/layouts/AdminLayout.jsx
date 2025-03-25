@@ -6,7 +6,6 @@ import {
   Toolbar,
   List,
   Typography,
-  Divider,
   IconButton,
   ListItem,
   ListItemButton,
@@ -21,13 +20,12 @@ import {
   Menu as MenuIcon,
   Dashboard as DashboardIcon,
   ConfirmationNumber as TicketIcon,
-  Person as UserIcon,
   Assessment as ReportIcon,
   Settings as SettingsIcon,
   ChevronLeft as ChevronLeftIcon,
   Logout as LogoutIcon,
 } from '@mui/icons-material';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const drawerWidth = 240;
@@ -35,12 +33,11 @@ const drawerWidth = 240;
 const menuItems = [
   { text: 'Dashboard', icon: <DashboardIcon />, path: '/admin/dashboard' },
   { text: 'Tickets', icon: <TicketIcon />, path: '/admin/tickets' },
-  { text: 'Users', icon: <UserIcon />, path: '/admin/users' },
   { text: 'Reports', icon: <ReportIcon />, path: '/admin/reports' },
   { text: 'Settings', icon: <SettingsIcon />, path: '/admin/settings' },
 ];
 
-const AdminLayout = ({ children }) => {
+const AdminLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
@@ -201,7 +198,7 @@ const AdminLayout = ({ children }) => {
         }}
       >
         <Toolbar />
-        {children}
+        <Outlet />
       </Box>
     </Box>
   );

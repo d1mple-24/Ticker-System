@@ -12,6 +12,8 @@ import {
   Select,
   MenuItem,
   useTheme,
+  CircularProgress,
+  Backdrop,
 } from '@mui/material';
 import axios from 'axios';
 import BackButton from '../components/BackButton';
@@ -36,6 +38,7 @@ const Troubleshooting = () => {
   });
   const [message, setMessage] = useState(null);
   const [ticketInfo, setTicketInfo] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const equipmentModels = {
     Desktop: [
@@ -145,6 +148,7 @@ const Troubleshooting = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setIsSubmitting(true);
     try {
       const finalModelOfEquipment = formData.modelOfEquipment === 'Other' ? formData.customModel : formData.modelOfEquipment;
       
@@ -194,6 +198,8 @@ const Troubleshooting = () => {
         type: 'error',
         text: error.response?.data?.message || 'Failed to submit ticket. Please try again.',
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -230,6 +236,7 @@ const Troubleshooting = () => {
         p: { xs: 2, sm: 3, md: 4 },
         borderRadius: 2,
         bgcolor: '#ffffff',
+        position: 'relative',
         '& .MuiTextField-root, & .MuiFormControl-root': {
           '& .MuiOutlinedInput-root': {
             '&:hover fieldset': {
@@ -244,6 +251,27 @@ const Troubleshooting = () => {
           }
         }
       }}>
+        {isSubmitting && (
+          <Backdrop
+            sx={{
+              position: 'absolute',
+              color: '#fff',
+              zIndex: 1,
+              background: 'rgba(255, 255, 255, 0.7)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              borderRadius: 2,
+            }}
+            open={isSubmitting}
+          >
+            <CircularProgress color="primary" />
+            <Typography variant="body1" sx={{ mt: 2, color: 'text.primary' }}>
+              Submitting your request...
+            </Typography>
+          </Backdrop>
+        )}
+
         {message && (
           <Alert 
             severity={message.type} 
@@ -289,6 +317,7 @@ const Troubleshooting = () => {
               value={formData.name}
               onChange={handleChange}
               variant="outlined"
+              disabled={isSubmitting}
               sx={{ '& .MuiInputBase-input': { fontSize: '0.9rem' } }}
             />
 
@@ -300,11 +329,12 @@ const Troubleshooting = () => {
               value={formData.email}
               onChange={handleChange}
               variant="outlined"
+              disabled={isSubmitting}
               sx={{ '& .MuiInputBase-input': { fontSize: '0.9rem' } }}
             />
 
             {/* Location Selection */}
-            <FormControl required className="full-width">
+            <FormControl required className="full-width" disabled={isSubmitting}>
               <InputLabel>Location</InputLabel>
               <Select
                 name="locationType"
@@ -320,7 +350,7 @@ const Troubleshooting = () => {
 
             {/* Department Selection for SDO */}
             {formData.locationType === 'SDO' && (
-              <FormControl required className="full-width">
+              <FormControl required className="full-width" disabled={isSubmitting}>
                 <InputLabel>Department</InputLabel>
                 <Select
                   name="department"
@@ -364,7 +394,7 @@ const Troubleshooting = () => {
 
             {/* School Level Selection */}
             {formData.locationType === 'SCHOOL' && (
-              <FormControl required>
+              <FormControl required disabled={isSubmitting}>
                 <InputLabel>School Level</InputLabel>
                 <Select
                   name="schoolLevel"
@@ -384,12 +414,12 @@ const Troubleshooting = () => {
 
             {/* School Name Selection */}
             {formData.schoolLevel && (
-              <FormControl required className="full-width">
+              <FormControl required className="full-width" disabled={isSubmitting}>
                 <InputLabel>School Name</InputLabel>
                 <Select
                   name="schoolName"
                   value={formData.schoolName}
-              onChange={handleChange}
+                  onChange={handleChange}
                   label="School Name"
                   sx={{ fontSize: '0.9rem' }}
                   MenuProps={{
@@ -419,15 +449,16 @@ const Troubleshooting = () => {
               value={formData.dateOfRequest}
               onChange={handleChange}
               InputLabelProps={{ shrink: true }}
+              disabled={isSubmitting}
               sx={{ '& .MuiInputBase-input': { fontSize: '0.9rem' } }}
             />
 
-            <FormControl required>
+            <FormControl required disabled={isSubmitting}>
               <InputLabel>Type of Equipment</InputLabel>
               <Select
-              name="typeOfEquipment"
-              value={formData.typeOfEquipment}
-              onChange={handleChange}
+                name="typeOfEquipment"
+                value={formData.typeOfEquipment}
+                onChange={handleChange}
                 label="Type of Equipment"
                 sx={{ fontSize: '0.9rem' }}
               >
@@ -446,27 +477,29 @@ const Troubleshooting = () => {
                 label="Specify Equipment Type"
                 value={formData.customEquipmentType || ''}
                 onChange={handleChange}
+                disabled={isSubmitting}
                 sx={{ '& .MuiInputBase-input': { fontSize: '0.9rem' } }}
               />
             )}
 
-            <FormControl required sx={{ gridColumn: formData.typeOfEquipment === 'Others' ? '1 / -1' : 'auto' }}>
+            <FormControl required sx={{ gridColumn: formData.typeOfEquipment === 'Others' ? '1 / -1' : 'auto' }} disabled={isSubmitting}>
               {formData.typeOfEquipment === 'Others' ? (
-            <TextField
-              required
+                <TextField
+                  required
                   name="modelOfEquipment"
                   label="Specify Equipment Model"
                   value={formData.modelOfEquipment || ''}
                   onChange={handleChange}
+                  disabled={isSubmitting}
                   sx={{ '& .MuiInputBase-input': { fontSize: '0.9rem' } }}
                 />
               ) : (
                 <>
                   <InputLabel>Model of Equipment</InputLabel>
                   <Select
-              name="modelOfEquipment"
-              value={formData.modelOfEquipment}
-              onChange={handleChange}
+                    name="modelOfEquipment"
+                    value={formData.modelOfEquipment}
+                    onChange={handleChange}
                     label="Model of Equipment"
                     sx={{ fontSize: '0.9rem' }}
                   >
@@ -487,6 +520,7 @@ const Troubleshooting = () => {
                 label="Specify Other Model"
                 value={formData.customModel}
                 onChange={handleChange}
+                disabled={isSubmitting}
                 sx={{ '& .MuiInputBase-input': { fontSize: '0.9rem' } }}
               />
             )}
@@ -497,10 +531,11 @@ const Troubleshooting = () => {
               name="serialNo"
               value={formData.serialNo}
               onChange={handleChange}
+              disabled={isSubmitting}
               sx={{ '& .MuiInputBase-input': { fontSize: '0.9rem' } }}
             />
 
-            <FormControl required>
+            <FormControl required disabled={isSubmitting}>
               <InputLabel>Priority</InputLabel>
               <Select
                 name="priority"
@@ -524,6 +559,7 @@ const Troubleshooting = () => {
               value={formData.specificProblem}
               onChange={handleChange}
               className="full-width"
+              disabled={isSubmitting}
               sx={{ 
                 '& .MuiInputBase-input': { 
                   fontSize: '0.9rem',
@@ -537,6 +573,7 @@ const Troubleshooting = () => {
               variant="contained"
               size="large"
               className="full-width"
+              disabled={isSubmitting}
               sx={{
                 mt: 2,
                 py: 1.5,
@@ -550,7 +587,14 @@ const Troubleshooting = () => {
                 }
               }}
             >
-              Submit Support Request
+              {isSubmitting ? (
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  <CircularProgress size={24} sx={{ mr: 1, color: 'white' }} />
+                  Submitting Request...
+                </Box>
+              ) : (
+                'Submit Support Request'
+              )}
             </Button>
           </Box>
         </form>

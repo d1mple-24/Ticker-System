@@ -1,65 +1,45 @@
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
-import nodemailer from 'nodemailer';
 import crypto from 'crypto';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import { sendTicketConfirmation } from '../utils/emailSender.js';
 
 const prisma = new PrismaClient();
-
-// Email transporter configuration
-const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false,
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASSWORD,
-  },
-});
 
 // Generate tracking ID
 const generateTrackingId = () => {
   return crypto.randomBytes(4).toString('hex').toUpperCase();
 };
 
-// Email template for ticket creation
-const getTicketEmailTemplate = (ticket, trackingId) => {
-  return `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2 style="color: #1976d2;">Ticket Submitted Successfully</h2>
-      <p>Dear ${ticket.name},</p>
-      <p>Your ticket has been successfully submitted. Here are your ticket details:</p>
-      
-      <div style="background-color: #f5f5f5; padding: 20px; border-radius: 5px; margin: 20px 0;">
-        <p><strong>Ticket ID:</strong> #${ticket.id}</p>
-        <p><strong>Tracking ID:</strong> ${trackingId}</p>
-        <p><strong>Category:</strong> ${ticket.category}</p>
-        <p><strong>Status:</strong> ${ticket.status}</p>
-      </div>
-
-      <p>You can track your ticket status using the Ticket ID and Tracking ID at:</p>
-      <p><a href="http://localhost:3000/track-ticket" style="color: #1976d2;">http://localhost:3000/track-ticket</a></p>
-
-      <p>We will process your request as soon as possible.</p>
-      
-      <p>Best regards,<br>IT Support Team</p>
-    </div>
-  `;
-};
-
-// Send ticket confirmation email
+// Send ticket confirmation email using our utility
 const sendTicketEmail = async (ticket, trackingId) => {
   try {
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: ticket.email,
-      subject: `Ticket Submitted - ID #${ticket.id}`,
-      html: getTicketEmailTemplate(ticket, trackingId),
-    });
+    // Get email settings from global app settings or use defaults
+    let emailSettings = null;
+    if (global.appSettings && global.appSettings.email) {
+      emailSettings = global.appSettings.email;
+      
+      // Explicitly check if notifications are enabled (true)
+      // This ensures we don't send if enableNotifications is false or undefined
+      if (emailSettings.enableNotifications !== true) {
+        return; // Exit early if notifications are not explicitly enabled
+      }
+      
+      // Only send if we have email settings configured
+      if (emailSettings.smtpUser && emailSettings.smtpPassword) {
+        // Create a pseudo user object from ticket data
+        const user = {
+          name: ticket.name,
+          email: ticket.email
+        };
+
+        await sendTicketConfirmation(ticket, user, emailSettings);
+      }
+    }
   } catch (error) {
-    console.error('Error sending email:', error);
+    console.error('Error sending ticket email:', error);
     // Don't throw error to prevent blocking ticket creation
   }
 };
@@ -390,14 +370,11 @@ const getTicketById = async (req, res) => {
           }
         },
         comments: {
-          include: {
-            user: {
-              select: {
-                name: true,
-                email: true
-              }
-            }
-          },
+          orderBy: {
+            createdAt: 'desc'
+          }
+        },
+        updates: {
           orderBy: {
             createdAt: 'desc'
           }
@@ -414,7 +391,13 @@ const getTicketById = async (req, res) => {
       return sendResponse(res, 403, false, 'Access denied');
     }
 
-    return sendResponse(res, 200, true, 'Ticket retrieved successfully', { ticket });
+    // Add category-specific details for better organization
+    const ticketWithCategoryDetails = {
+      ...ticket,
+      categorySpecificDetails: getCategorySpecificDetails(ticket)
+    };
+
+    return sendResponse(res, 200, true, 'Ticket retrieved successfully', { ticket: ticketWithCategoryDetails });
   } catch (error) {
     console.error('Error fetching ticket:', error);
     return sendResponse(res, 500, false, 'Failed to fetch ticket');
@@ -758,14 +741,16 @@ const createTroubleshootingTicket = async (req, res) => {
   }
 };
 
+// Module exports
 export {
+  createTroubleshootingTicket,
+  createAccountManagementTicket,
+  createDocumentUploadTicket,
   createTicket,
   getTickets,
   getTicketById,
   updateTicket,
   deleteTicket,
   trackTicket,
-  createAccountManagementTicket,
-  createTroubleshootingTicket,
-  createDocumentUploadTicket
+  getCategorySpecificDetails
 }; 
