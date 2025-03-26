@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Container,
   Paper,
@@ -11,15 +11,13 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  useTheme,
   CircularProgress,
   Backdrop,
 } from '@mui/material';
-import axios from 'axios';
+import api from '../utils/api';
 import BackButton from '../components/BackButton';
 
 const Troubleshooting = () => {
-  const theme = useTheme();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -34,11 +32,15 @@ const Troubleshooting = () => {
     specificProblem: '',
     customEquipmentType: '',
     customModel: '',
-    priority: 'MEDIUM',
+    priority: '',
+    captchaCode: ''
   });
   const [message, setMessage] = useState(null);
   const [ticketInfo, setTicketInfo] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [captcha, setCaptcha] = useState({ id: '', code: '' });
+  const [captchaError, setCaptchaError] = useState(null);
+  const [captchaDisabled, setCaptchaDisabled] = useState(false);
 
   const equipmentModels = {
     Desktop: [
@@ -134,6 +136,53 @@ const Troubleshooting = () => {
     ]
   };
 
+  // Function to generate new CAPTCHA with retry logic
+  const generateCaptcha = useCallback(async (retryCount = 0) => {
+    try {
+      setCaptchaError(null);
+      const response = await api.get('/tickets/generate-captcha');
+      setCaptcha({
+        id: response.data.captchaId,
+        code: response.data.captchaCode
+      });
+      setCaptchaDisabled(false);
+    } catch (error) {
+      console.error('Error generating CAPTCHA:', error);
+      const errorMessage = 'Unable to generate verification code. Please try again.';
+      setCaptchaError(errorMessage);
+    }
+  }, []); // No dependencies needed for the callback
+
+  useEffect(() => {
+    let mounted = true;
+    let timeoutId = null;
+    
+    const initCaptcha = async () => {
+      if (mounted && !captcha.id) {
+        try {
+          await generateCaptcha();
+        } catch (error) {
+          console.error('Failed to initialize CAPTCHA:', error);
+        }
+      }
+    };
+
+    timeoutId = setTimeout(initCaptcha, 1000);
+
+    return () => {
+      mounted = false;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [generateCaptcha, captcha.id]);
+
+  // Add a manual refresh function without confirmation
+  const handleRefreshCaptcha = async () => {
+    if (captchaDisabled) {
+      return;
+    }
+    await generateCaptcha();
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
@@ -149,10 +198,20 @@ const Troubleshooting = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setMessage(null);
+    setCaptchaError(null);
+
     try {
+      // Validate CAPTCHA input
+      if (!formData.captchaCode) {
+        setMessage({ type: 'error', text: 'Please enter the verification code' });
+        setIsSubmitting(false);
+        return;
+      }
+
       const finalModelOfEquipment = formData.modelOfEquipment === 'Other' ? formData.customModel : formData.modelOfEquipment;
-      
-      const response = await axios.post('http://localhost:5000/api/tickets/troubleshooting', {
+
+      const response = await api.post('/tickets/troubleshooting', {
         category: 'TROUBLESHOOTING',
         name: formData.name,
         email: formData.email,
@@ -164,7 +223,9 @@ const Troubleshooting = () => {
         modelOfEquipment: finalModelOfEquipment,
         serialNo: formData.serialNo,
         specificProblem: formData.specificProblem,
-        priority: formData.priority
+        priority: formData.priority,
+        captchaId: captcha.id,
+        captchaCode: formData.captchaCode
       });
 
       const { ticketId, trackingId } = response.data;
@@ -191,13 +252,22 @@ const Troubleshooting = () => {
         customEquipmentType: '',
         customModel: '',
         priority: 'MEDIUM',
+        captchaCode: ''
       });
+      
+      // Generate new CAPTCHA after successful submission
+      generateCaptcha();
     } catch (error) {
       console.error('Error submitting ticket:', error);
+      const errorMessage = error.response?.data?.message || 'Unable to submit request. Please try again.';
+      
       setMessage({
         type: 'error',
-        text: error.response?.data?.message || 'Failed to submit ticket. Please try again.',
+        text: errorMessage
       });
+
+      // Generate new CAPTCHA on error
+      generateCaptcha();
     } finally {
       setIsSubmitting(false);
     }
@@ -210,8 +280,9 @@ const Troubleshooting = () => {
         textAlign: 'center', 
         mb: 4,
         '& h4': {
-          color: theme.palette.primary.main,
+          color: '#1976d2',
           fontWeight: 600,
+          fontFamily: '"Lisu Bosa", serif',
           position: 'relative',
           display: 'inline-block',
           '&:after': {
@@ -222,7 +293,7 @@ const Troubleshooting = () => {
             transform: 'translateX(-50%)',
             width: '60%',
             height: 4,
-            backgroundColor: theme.palette.primary.main,
+            backgroundColor: '#1976d2',
             borderRadius: 2,
           }
         }
@@ -235,19 +306,21 @@ const Troubleshooting = () => {
       <Paper elevation={3} sx={{ 
         p: { xs: 2, sm: 3, md: 4 },
         borderRadius: 2,
-        bgcolor: '#ffffff',
+        bgcolor: '#fcf8f0',
         position: 'relative',
+        border: '1px solid #bbdefb',
+        boxShadow: '0 4px 12px rgba(25, 118, 210, 0.1)',
         '& .MuiTextField-root, & .MuiFormControl-root': {
           '& .MuiOutlinedInput-root': {
             '&:hover fieldset': {
-              borderColor: theme.palette.primary.main,
+              borderColor: '#1976d2',
             },
             '&.Mui-focused fieldset': {
-              borderColor: theme.palette.primary.main,
+              borderColor: '#1976d2',
             }
           },
           '& .MuiInputLabel-root.Mui-focused': {
-            color: theme.palette.primary.main,
+            color: '#1976d2',
           }
         }
       }}>
@@ -266,7 +339,7 @@ const Troubleshooting = () => {
             open={isSubmitting}
           >
             <CircularProgress color="primary" />
-            <Typography variant="body1" sx={{ mt: 2, color: 'text.primary' }}>
+            <Typography variant="body1" sx={{ mt: 2, color: 'text.primary', fontFamily: '"Lisu Bosa", serif' }}>
               Submitting your request...
             </Typography>
           </Backdrop>
@@ -286,13 +359,13 @@ const Troubleshooting = () => {
             {message.text}
             {ticketInfo && (
               <Box sx={{ mt: 2, p: 2, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid' }}>
-                <Typography variant="body2" gutterBottom>
+                <Typography variant="body2" gutterBottom sx={{ fontFamily: '"Lisu Bosa", serif' }}>
                   <strong>Ticket ID:</strong> #{ticketInfo.ticketId}
                 </Typography>
-                <Typography variant="body2">
+                <Typography variant="body2" sx={{ fontFamily: '"Lisu Bosa", serif' }}>
                   <strong>Tracking ID:</strong> {ticketInfo.trackingId}
                 </Typography>
-                <Typography variant="body2" sx={{ mt: 1, color: 'text.secondary' }}>
+                <Typography variant="body2" sx={{ mt: 1, color: 'text.secondary', fontFamily: '"Lisu Bosa", serif' }}>
                   Please save these details for tracking your ticket status.
                 </Typography>
               </Box>
@@ -568,6 +641,105 @@ const Troubleshooting = () => {
               }}
             />
 
+            {/* CAPTCHA Display */}
+            <Box sx={{ 
+              mt: 4, 
+              mb: 4, 
+              textAlign: 'center',
+              width: '100%',
+              gridColumn: '1 / -1'
+            }}>
+              <Typography 
+                variant="h5" 
+                gutterBottom 
+                sx={{ 
+                  color: '#1976d2',
+                  fontWeight: 600,
+                  mb: 3,
+                  fontFamily: '"Lisu Bosa", serif',
+                  position: 'relative',
+                  display: 'inline-block',
+                  '&:after': {
+                    content: '""',
+                    position: 'absolute',
+                    bottom: -8,
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    width: '60%',
+                    height: 3,
+                    backgroundColor: '#1976d2',
+                    borderRadius: 2,
+                  }
+                }}
+              >
+                Spam Prevention
+              </Typography>
+              <Typography variant="subtitle1" gutterBottom sx={{ color: 'text.secondary', mb: 3 }}>
+                Please enter the verification code below:
+              </Typography>
+              {captchaError && (
+                <Alert severity="error" sx={{ mb: 3, maxWidth: '400px', margin: '0 auto' }}>
+                  {captchaError}
+                </Alert>
+              )}
+              <Box sx={{ 
+                maxWidth: '400px', 
+                margin: '0 auto',
+                p: 3,
+                backgroundColor: '#f8f9fa',
+                borderRadius: '8px',
+                border: '1px solid #e0e0e0'
+              }}>
+                <Typography 
+                  variant="h4" 
+                  sx={{ 
+                    fontFamily: 'monospace',
+                    letterSpacing: '0.5em',
+                    padding: '15px',
+                    borderRadius: '4px',
+                    userSelect: 'none',
+                    backgroundColor: '#ffffff',
+                    border: '1px solid #e0e0e0',
+                    mb: 2
+                  }}
+                >
+                  {captcha.code}
+                </Typography>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={handleRefreshCaptcha}
+                  disabled={captchaDisabled || isSubmitting}
+                  sx={{ 
+                    mb: 3,
+                    '&.Mui-disabled': {
+                      color: 'text.secondary'
+                    }
+                  }}
+                >
+                  Refresh Code
+                </Button>
+                <TextField
+                  fullWidth
+                  label="Enter Verification Code"
+                  variant="outlined"
+                  value={formData.captchaCode}
+                  onChange={(e) => setFormData({ ...formData, captchaCode: e.target.value })}
+                  required
+                  error={!!captchaError}
+                  helperText={captchaError}
+                  disabled={isSubmitting}
+                  sx={{ 
+                    '& .MuiInputBase-input': { 
+                      textAlign: 'center',
+                      fontSize: '1.1rem',
+                      letterSpacing: '0.2em'
+                    }
+                  }}
+                />
+              </Box>
+            </Box>
+
             <Button
               type="submit"
               variant="contained"
@@ -581,9 +753,12 @@ const Troubleshooting = () => {
                 fontWeight: 600,
                 textTransform: 'none',
                 borderRadius: 1.5,
-                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                backgroundColor: '#1976d2',
+                color: '#fff',
+                boxShadow: '0 4px 12px rgba(25, 118, 210, 0.2)',
                 '&:hover': {
-                  boxShadow: '0 6px 16px rgba(0,0,0,0.2)',
+                  backgroundColor: '#1565c0',
+                  boxShadow: '0 6px 16px rgba(25, 118, 210, 0.3)',
                 }
               }}
             >

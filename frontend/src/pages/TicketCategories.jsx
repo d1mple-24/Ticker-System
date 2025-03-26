@@ -33,7 +33,7 @@ const TicketCategories = () => {
       description: 'Report technical issues with computers, printers, or other equipment',
       icon: <ComputerIcon sx={{ fontSize: 40 }} />,
       path: '/troubleshooting',
-      color: '#2196f3'
+      color: '51d736'
     },
     'ACCOUNT_MANAGEMENT': {
       title: 'Account Management',
@@ -102,11 +102,13 @@ const TicketCategories = () => {
         position: 'relative',
         overflow: 'hidden',
         opacity: isActive ? 1 : 0.85,
-        backgroundColor: isActive ? 'white' : '#f5f5f5',
+        backgroundColor: isActive ? '#fcf8f0' : '#f7f1e6',
         borderTop: isActive ? 'none' : '3px solid #e57373',
+        border: isActive ? '1px solid #bbdefb' : '1px solid #ddd',
         '&:hover': isActive ? {
           transform: 'translateY(-8px)',
-          boxShadow: '0 8px 16px rgba(0,0,0,0.1)',
+          boxShadow: '0 8px 16px rgba(25, 118, 210, 0.15)',
+          borderColor: '#1976d2',
           '&::before': {
             opacity: 0.1,
           },
@@ -118,7 +120,7 @@ const TicketCategories = () => {
           left: 0,
           right: 0,
           bottom: 0,
-          background: color,
+          background: isActive ? '#1976d2' : color,
           opacity: isActive ? 0.05 : 0,
           transition: 'opacity 0.3s',
         },
@@ -146,13 +148,14 @@ const TicketCategories = () => {
       )}
       <Box
         sx={{
-          bgcolor: isActive ? color : '#bdbdbd',
+          bgcolor: isActive ? '#1976d2' : '#bdbdbd',
           borderRadius: '50%',
           p: 2,
           mb: 2,
           color: 'white',
           position: 'relative',
           transition: 'all 0.3s',
+          boxShadow: isActive ? '0 4px 8px rgba(25, 118, 210, 0.25)' : 'none',
         }}
       >
         {icon}
@@ -209,10 +212,10 @@ const TicketCategories = () => {
 
       {/* Header */}
       <Box sx={{ textAlign: 'center', mb: 6 }}>
-        <Typography variant="h4" gutterBottom sx={{ fontWeight: 600 }}>
+        <Typography variant="h4" gutterBottom sx={{ fontWeight: 600, fontFamily: '"Lisu Bosa", serif', color: 'black' }}>
           Submit a Ticket
         </Typography>
-        <Typography variant="subtitle1" color="text.secondary">
+        <Typography variant="subtitle1" color="black" sx={{ fontFamily: '"Lisu Bosa", serif', opacity: 0.85 }}>
           Choose the category that best matches your request
         </Typography>
       </Box>
@@ -246,7 +249,7 @@ const TicketCategories = () => {
 
       {/* Footer */}
       <Box sx={{ mt: 6, textAlign: 'center' }}>
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="body2" sx={{ color: '#1976d2', fontFamily: '"Lisu Bosa", serif' }}>
           Need help choosing? Contact our support team
         </Typography>
       </Box>

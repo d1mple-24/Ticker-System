@@ -27,11 +27,19 @@ model Ticket {
   category              String?    // TROUBLESHOOTING, ACCOUNT_MANAGEMENT, DOCUMENT_UPLOAD
   name                  String?
   email                 String?
+  department            String?    // Department field for SDO tickets
   priority              String?    // HIGH, MEDIUM, LOW
   status                String?    @default("PENDING") // PENDING, IN_PROGRESS, RESOLVED, CLOSED
   trackingId            String?    @unique
   createdAt             DateTime?  @default(now())
   updatedAt             DateTime?  @updatedAt
+
+  // ICT Support Details
+  ictAssignedTo        String?    // Name of ICT staff assigned
+  ictDiagnosisDetails  String?    @db.Text  // Detailed diagnosis of the issue
+  ictFixDetails        String?    @db.Text  // Details of how the issue was fixed
+  ictDateFixed         DateTime?  // When the issue was fixed
+  ictRecommendations   String?    @db.Text  // Recommendations for preventing similar issues
 
   // Troubleshooting specific fields
   location              String?   // SDO - Imus City, School - Imus City
@@ -44,12 +52,16 @@ model Ticket {
   // Account Management specific fields
   accountType           String?   // Gmail Account, M365 Account, LIS Account, LMS Account, Adobe Account
   actionType            String?   // CREATE, RESET
+  locationType         String?   // SDO, SCHOOL
+  schoolLevel          String?   // Elementary, Junior High School, Senior High School, Integrated School
+  schoolName           String?   // Name of the school
   subject               String?
-  message               String?
+  message               String?   @db.Text
 
   // Document Upload specific fields
   documentSubject       String?   // For document upload tickets
   documentMessage       String?   // For document upload tickets
+  documentPath          String?   // Path to the uploaded document
 
   // Category specific details stored as JSON
   categorySpecificDetails Json?
@@ -59,6 +71,7 @@ model Ticket {
   userId      Int?
   comments    Comment[]
   updates     TicketUpdate[]
+  attachments Attachment[]
 
   @@index([category])
   @@index([status])
@@ -86,5 +99,18 @@ model TicketUpdate {
   comment        String   @db.Text
   createdAt      DateTime @default(now())
   
+  @@index([ticketId])
+}
+
+model Attachment {
+  id        Int      @id @default(autoincrement())
+  filename  String
+  path      String
+  mimetype  String
+  ticketId  Int
+  ticket    Ticket   @relation(fields: [ticketId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([ticketId])
 } 

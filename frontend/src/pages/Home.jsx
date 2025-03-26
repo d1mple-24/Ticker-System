@@ -26,28 +26,47 @@ const Home = () => {
         alignItems: 'center',
         cursor: 'pointer',
         transition: 'all 0.3s',
+        backgroundColor: '#fcf8f0',
+        border: '1px solid #e0d2b8',
         '&:hover': {
           transform: 'translateY(-8px)',
-          boxShadow: 6,
+          boxShadow: '0 8px 16px rgba(139, 109, 55, 0.15)',
+          borderColor: '#d4b577',
         },
       }}
       onClick={onClick}
     >
       <Box
         sx={{
-          bgcolor: 'primary.main',
+          bgcolor: '#1976d2',
           borderRadius: '50%',
           p: 2,
           mb: 3,
           color: 'white',
+          boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
         }}
       >
         {icon}
       </Box>
-      <Typography variant="h5" gutterBottom align="center" sx={{ fontWeight: 600 }}>
+      <Typography 
+        variant="h5" 
+        gutterBottom 
+        align="center" 
+        sx={{ 
+          fontWeight: 600,
+          fontFamily: '"Lisu Bosa", serif',
+        }}
+      >
         {title}
       </Typography>
-      <Typography variant="body1" color="text.secondary" align="center">
+      <Typography 
+        variant="body1" 
+        color="text.secondary" 
+        align="center"
+        sx={{ 
+          fontFamily: '"Lisu Bosa", serif',
+        }}
+      >
         {description}
       </Typography>
     </Paper>
@@ -61,9 +80,10 @@ const Home = () => {
         sx={{ 
           py: 2, 
           px: 3, 
-          bgcolor: 'primary.main', 
-          color: 'white',
+          bgcolor: '#1976d2',
+          color: '#fff',
           borderRadius: 0,
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
         }}
       >
         <Box sx={{ 
@@ -71,15 +91,23 @@ const Home = () => {
           alignItems: 'center',
           maxWidth: 1200,
           mx: 'auto',
-          gap: 2
+          gap: 2,
+          color: "#5c3d11"
         }}>
           <img 
             src={process.env.PUBLIC_URL + '/deped-logo.png'} 
             alt="DepEd Logo" 
-            style={{ height: 40 }}
+            style={{ height: 60 }}
           />
-          <Typography variant="h6" sx={{ fontWeight: 600 }}>
-            Service Desk
+          <Typography 
+            variant="h6" 
+            sx={{ 
+              fontWeight: 800,
+              fontFamily: '"Lisu Bosa", serif',
+              color: "white"
+            }}
+          >
+            Division of Imus
           </Typography>
         </Box>
       </Paper>
@@ -88,10 +116,24 @@ const Home = () => {
       <Container maxWidth="lg" sx={{ py: 8 }}>
         {/* Welcome Section */}
         <Box sx={{ textAlign: 'center', mb: 8 }}>
-          <Typography variant="h3" gutterBottom sx={{ fontWeight: 700 }}>
+          <Typography 
+            variant="h3" 
+            gutterBottom 
+            sx={{ 
+              fontWeight: 700,
+              fontFamily: '"Lisu Bosa", serif',
+            }}
+          >
             Hello, how can we help?
           </Typography>
-          <Typography variant="h6" color="text.secondary" sx={{ mb: 2 }}>
+          <Typography 
+            variant="h6" 
+            color="text.secondary" 
+            sx={{ 
+              mb: 2,
+              fontFamily: '"Lisu Bosa", serif',
+            }}
+          >
             Division of Imus City
           </Typography>
         </Box>
@@ -105,7 +147,7 @@ const Home = () => {
               icon={<AddIcon sx={{ fontSize: 40 }} />}
               onClick={() => navigate('/tickets')}
             />
-          </Grid>
+          </Grid> 
           <Grid item xs={12} md={6}>
             <ServiceCard
               title="View existing tickets"
@@ -141,12 +183,19 @@ const Home = () => {
           position: 'fixed',
           bottom: 0,
           width: '100%',
-          bgcolor: 'background.paper',
-          borderTop: '1px solid',
-          borderColor: 'divider'
+          bgcolor: 'white',
+          borderTop: '1px solidrgb(250, 250, 250)',
+          color: '#5c3d11',
+          boxShadow: '0 -2px 4px rgba(0,0,0,0.05)'
         }}
       >
-        <Typography variant="body2" color="text.secondary">
+        <Typography 
+          variant="body2" 
+          color="inherit"
+          sx={{ 
+            fontFamily: '"Lisu Bosa", serif',
+          }}
+        >
           © {new Date().getFullYear()} DepEd Imus Division | ictcaa
         </Typography>
       </Box>

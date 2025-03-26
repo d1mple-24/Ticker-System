@@ -189,4 +189,90 @@ export const sendTestEmail = async (recipientEmail, emailSettings) => {
     html,
     text: `This is a test email from your ticket system. Email settings are working correctly.`
   }, emailSettings);
-}; 
+};
+
+// Get email settings from global app settings or environment variables
+const getEmailSettings = async () => {
+  // First try to get from global app settings
+  if (global.appSettings && global.appSettings.email) {
+    return global.appSettings.email;
+  }
+
+  // Fallback to environment variables
+  return {
+    enabled: true, // Default to enabled when using env vars
+    smtpHost: process.env.SMTP_HOST || 'smtp.gmail.com',
+    smtpPort: parseInt(process.env.SMTP_PORT || '587'),
+    smtpUser: process.env.EMAIL_USER,
+    smtpPassword: process.env.EMAIL_PASSWORD,
+    senderName: process.env.SENDER_NAME || 'Ticket System',
+    senderEmail: process.env.EMAIL_USER
+  };
+};
+
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false,
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASSWORD
+  },
+  tls: {
+    rejectUnauthorized: false
+  }
+});
+
+const sendTicketEmail = async (ticketData) => {
+  const {
+    email,
+    name,
+    trackingId,
+    category,
+    subject,
+    message
+  } = ticketData;
+
+  const emailSubject = `Ticket Confirmation - ${category} Request`;
+  
+  const emailBody = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
+      <h2 style="color: #2196f3; border-bottom: 1px solid #eee; padding-bottom: 10px;">Ticket Confirmation</h2>
+      <p>Dear ${name},</p>
+      <p>Your ${category} request has been successfully submitted. Here are your ticket details:</p>
+      
+      <div style="background-color: #f5f5f5; padding: 15px; margin: 20px 0; border-radius: 5px;">
+        <p><strong>Tracking ID:</strong> ${trackingId}</p>
+        <p><strong>Category:</strong> ${category}</p>
+        <p><strong>Subject:</strong> ${subject}</p>
+        <p><strong>Message:</strong> ${message}</p>
+      </div>
+
+      <p>You can use this Tracking ID to check the status of your ticket at any time.</p>
+      
+      <p>Best regards,<br>SDO Imus City Support Team</p>
+      
+      <div style="margin-top: 30px; padding-top: 15px; border-top: 1px solid #eee; font-size: 12px; color: #777;">
+        <p>This is an automated message, please do not reply directly to this email.</p>
+      </div>
+    </div>
+  `;
+
+  const mailOptions = {
+    from: `"SDO Imus City Support" <${process.env.EMAIL_USER}>`,
+    to: email,
+    subject: emailSubject,
+    html: emailBody
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log('Confirmation email sent successfully to:', email);
+  } catch (error) {
+    console.error('Error sending confirmation email:', error);
+    throw error;
+  }
+};
+
+export { sendTicketEmail }; 

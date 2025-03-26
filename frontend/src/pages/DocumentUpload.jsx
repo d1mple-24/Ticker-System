@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Container,
   Paper,
@@ -13,8 +13,9 @@ import {
   MenuItem,
   useTheme,
   CircularProgress,
+  Backdrop,
 } from '@mui/material';
-import axios from 'axios';
+import api from '../utils/api';
 import BackButton from '../components/BackButton';
 
 const DocumentUpload = () => {
@@ -22,17 +23,22 @@ const DocumentUpload = () => {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    priority: 'MEDIUM',
+    priority: '',
     locationType: '',
     schoolLevel: '',
     schoolName: '',
+    department: '',
     subject: '',
     message: '',
-    file: null
+    file: null,
+    captchaCode: ''
   });
   const [message, setMessage] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [ticketInfo, setTicketInfo] = useState(null);
+  const [captcha, setCaptcha] = useState({ id: '', code: '' });
+  const [captchaError, setCaptchaError] = useState(null);
+  const [captchaDisabled, setCaptchaDisabled] = useState(false);
 
   const schools = {
     'Elementary': [
@@ -83,12 +89,85 @@ const DocumentUpload = () => {
     ]
   };
 
+  const departments = [
+    'Office of the Schools Division Superintendent',
+    'Curriculum Implementation Division',
+    'School Governance and Operations Division',
+    'School Management Monitoring and Evaluation Division',
+    'Administrative Division',
+    'Finance Division',
+    'Human Resource Development Division',
+    'Information and Communications Technology Division',
+    'Legal Unit',
+    'Records Unit',
+    'Supply Unit',
+    'Cashier Unit',
+    'Property Unit',
+    'General Services Unit',
+    'Medical and Dental Unit',
+    'Guidance and Counseling Unit',
+    'Library Hub',
+    'Learning Resource Management and Development System',
+    'School Health and Nutrition Unit',
+    'Special Education Unit',
+    'Alternative Learning System Unit',
+    'Youth Formation Unit',
+    'Sports Unit',
+    'School Sports Unit'
+  ];
+
+  // Function to generate new CAPTCHA with retry logic
+  const generateCaptcha = useCallback(async (retryCount = 0) => {
+    try {
+      setCaptchaError(null);
+      const response = await api.get('/tickets/generate-captcha');
+      setCaptcha({
+        id: response.data.captchaId,
+        code: response.data.captchaCode
+      });
+      setCaptchaDisabled(false);
+    } catch (error) {
+      console.error('Error generating CAPTCHA:', error);
+      const errorMessage = 'Unable to generate verification code. Please try again.';
+      setCaptchaError(errorMessage);
+    }
+  }, []); // No dependencies needed for the callback
+
+  useEffect(() => {
+    let mounted = true;
+    let timeoutId = null;
+    
+    const initCaptcha = async () => {
+      if (mounted && !captcha.id) {
+        try {
+          await generateCaptcha();
+        } catch (error) {
+          console.error('Failed to initialize CAPTCHA:', error);
+        }
+      }
+    };
+
+    timeoutId = setTimeout(initCaptcha, 1000);
+
+    return () => {
+      mounted = false;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [generateCaptcha, captcha.id]);
+
+  const handleRefreshCaptcha = async () => {
+    if (captchaDisabled) {
+      return;
+    }
+    await generateCaptcha();
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
       [name]: value,
-      ...(name === 'locationType' && { schoolLevel: '', schoolName: '' }),
+      ...(name === 'locationType' && { schoolLevel: '', schoolName: '', department: '' }),
       ...(name === 'schoolLevel' && { schoolName: '' })
     }));
   };
@@ -131,8 +210,18 @@ const DocumentUpload = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
+    setIsSubmitting(true);
+    setMessage(null);
+    setCaptchaError(null);
+
     try {
+      // Validate CAPTCHA input
+      if (!formData.captchaCode) {
+        setMessage({ type: 'error', text: 'Please enter the verification code' });
+        setIsSubmitting(false);
+        return;
+      }
+
       // Validate required fields
       if (!formData.name || !formData.email || !formData.locationType || !formData.subject || !formData.message) {
         throw new Error('Please fill in all required fields');
@@ -143,27 +232,29 @@ const DocumentUpload = () => {
         throw new Error('Please select a school');
       }
 
+      // Validate department selection if SDO location is selected
+      if (formData.locationType === 'SDO' && !formData.department) {
+        throw new Error('Please select a department');
+      }
+
       const formDataToSend = new FormData();
-      formDataToSend.append('category', 'DOCUMENT_UPLOAD');
       formDataToSend.append('name', formData.name);
       formDataToSend.append('email', formData.email);
       formDataToSend.append('priority', formData.priority);
-      formDataToSend.append('location', formData.locationType === 'SCHOOL' ? formData.schoolName : 'SDO - Imus City');
+      formDataToSend.append('location', formData.locationType === 'SCHOOL' ? formData.schoolName : formData.department);
       formDataToSend.append('subject', formData.subject);
       formDataToSend.append('message', formData.message);
+      formDataToSend.append('captchaId', captcha.id);
+      formDataToSend.append('captchaCode', formData.captchaCode);
       if (formData.file) {
         formDataToSend.append('file', formData.file);
       }
 
-      const response = await axios.post(
-        'http://localhost:5000/api/tickets/document-upload',
-        formDataToSend,
-        {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-        }
-      );
+      const response = await api.post('/tickets/document-upload', formDataToSend, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
 
       const { ticketId, trackingId } = response.data;
       setTicketInfo({ ticketId, trackingId });
@@ -181,9 +272,11 @@ const DocumentUpload = () => {
         locationType: '',
         schoolLevel: '',
         schoolName: '',
+        department: '',
         subject: '',
         message: '',
-        file: null
+        file: null,
+        captchaCode: ''
       });
       
       // Reset file input
@@ -191,14 +284,22 @@ const DocumentUpload = () => {
       if (fileInput) {
         fileInput.value = '';
       }
+
+      // Generate new CAPTCHA after successful submission
+      generateCaptcha();
     } catch (error) {
       console.error('Error submitting request:', error);
+      const errorMessage = error.response?.data?.message || 'Unable to submit request. Please try again.';
+      
       setMessage({
         type: 'error',
-        text: error.response?.data?.message || error.message || 'Failed to submit request. Please try again.',
+        text: errorMessage
       });
+
+      // Generate new CAPTCHA on error
+      generateCaptcha();
     } finally {
-      setLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -226,16 +327,40 @@ const DocumentUpload = () => {
           }
         }
       }}>
-      <Typography variant="h4" gutterBottom>
+        <Typography variant="h4" gutterBottom>
           Document Upload Request
-      </Typography>
+        </Typography>
       </Box>
 
       <Paper elevation={3} sx={{ 
         p: { xs: 2, sm: 3, md: 4 },
         borderRadius: 2,
         bgcolor: '#ffffff',
+        position: 'relative',
+        border: '1px solid #bbdefb',
+        boxShadow: '0 4px 12px rgba(25, 118, 210, 0.1)'
       }}>
+        {isSubmitting && (
+          <Backdrop
+            sx={{
+              position: 'absolute',
+              color: '#fff',
+              zIndex: 1,
+              background: 'rgba(255, 255, 255, 0.7)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              borderRadius: 2,
+            }}
+            open={isSubmitting}
+          >
+            <CircularProgress color="primary" />
+            <Typography variant="body1" sx={{ mt: 2, color: 'text.primary', fontFamily: '"Lisu Bosa", serif' }}>
+              Submitting your request...
+            </Typography>
+          </Backdrop>
+        )}
+
         {message && (
           <Alert 
             severity={message.type} 
@@ -313,6 +438,33 @@ const DocumentUpload = () => {
                 <MenuItem value="SCHOOL">School - Imus City</MenuItem>
               </Select>
             </FormControl>
+
+            {formData.locationType === 'SDO' && (
+              <FormControl required className="full-width">
+                <InputLabel>Department</InputLabel>
+                <Select
+                  name="department"
+                  value={formData.department}
+                  onChange={handleChange}
+                  label="Department"
+                  sx={{ fontSize: '0.9rem' }}
+                  MenuProps={{
+                    PaperProps: {
+                      style: {
+                        maxHeight: 300,
+                        width: '60%'
+                      },
+                    },
+                  }}
+                >
+                  {departments.map((dept) => (
+                    <MenuItem key={dept} value={dept}>
+                      {dept}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            )}
 
             {formData.locationType === 'SCHOOL' && (
               <FormControl required>
@@ -415,12 +567,111 @@ const DocumentUpload = () => {
               )}
             </FormControl>
 
+            {/* CAPTCHA Display */}
+            <Box sx={{ 
+              mt: 4, 
+              mb: 4, 
+              textAlign: 'center',
+              width: '100%',
+              gridColumn: '1 / -1'
+            }}>
+              <Typography 
+                variant="h5" 
+                gutterBottom 
+                sx={{ 
+                  color: theme.palette.primary.main,
+                  fontWeight: 600,
+                  mb: 3,
+                  fontFamily: '"Lisu Bosa", serif',
+                  position: 'relative',
+                  display: 'inline-block',
+                  '&:after': {
+                    content: '""',
+                    position: 'absolute',
+                    bottom: -8,
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    width: '60%',
+                    height: 3,
+                    backgroundColor: theme.palette.primary.main,
+                    borderRadius: 2,
+                  }
+                }}
+              >
+                Spam Prevention
+              </Typography>
+              <Typography variant="subtitle1" gutterBottom sx={{ color: 'text.secondary', mb: 3 }}>
+                Please enter the verification code below:
+              </Typography>
+              {captchaError && (
+                <Alert severity="error" sx={{ mb: 3, maxWidth: '400px', margin: '0 auto' }}>
+                  {captchaError}
+                </Alert>
+              )}
+              <Box sx={{ 
+                maxWidth: '400px', 
+                margin: '0 auto',
+                p: 3,
+                backgroundColor: '#f8f9fa',
+                borderRadius: '8px',
+                border: '1px solid #e0e0e0'
+              }}>
+                <Typography 
+                  variant="h4" 
+                  sx={{ 
+                    fontFamily: 'monospace',
+                    letterSpacing: '0.5em',
+                    padding: '15px',
+                    borderRadius: '4px',
+                    userSelect: 'none',
+                    backgroundColor: '#ffffff',
+                    border: '1px solid #e0e0e0',
+                    mb: 2
+                  }}
+                >
+                  {captcha.code}
+                </Typography>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={handleRefreshCaptcha}
+                  disabled={captchaDisabled || isSubmitting}
+                  sx={{ 
+                    mb: 3,
+                    '&.Mui-disabled': {
+                      color: 'text.secondary'
+                    }
+                  }}
+                >
+                  Refresh Code
+                </Button>
+                <TextField
+                  fullWidth
+                  label="Enter Verification Code"
+                  variant="outlined"
+                  value={formData.captchaCode}
+                  onChange={(e) => setFormData(prev => ({ ...prev, captchaCode: e.target.value }))}
+                  required
+                  error={!!captchaError}
+                  helperText={captchaError}
+                  disabled={isSubmitting}
+                  sx={{ 
+                    '& .MuiInputBase-input': { 
+                      textAlign: 'center',
+                      fontSize: '1.1rem',
+                      letterSpacing: '0.2em'
+                    }
+                  }}
+                />
+              </Box>
+            </Box>
+
             <Button
               type="submit"
               variant="contained"
               size="large"
-              disabled={loading}
               className="full-width"
+              disabled={isSubmitting}
               sx={{
                 mt: 2,
                 py: 1.5,
@@ -428,14 +679,20 @@ const DocumentUpload = () => {
                 fontWeight: 600,
                 textTransform: 'none',
                 borderRadius: 1.5,
-                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                backgroundColor: '#1976d2',
+                color: '#fff',
+                boxShadow: '0 4px 12px rgba(25, 118, 210, 0.2)',
                 '&:hover': {
-                  boxShadow: '0 6px 16px rgba(0,0,0,0.2)',
+                  backgroundColor: '#1565c0',
+                  boxShadow: '0 6px 16px rgba(25, 118, 210, 0.3)',
                 }
               }}
             >
-              {loading ? (
-                <CircularProgress size={24} color="inherit" />
+              {isSubmitting ? (
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  <CircularProgress size={24} sx={{ mr: 1, color: 'white' }} />
+                  Submitting Request...
+                </Box>
               ) : (
                 'Submit Document Upload Request'
               )}

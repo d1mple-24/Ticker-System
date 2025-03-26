@@ -4,42 +4,38 @@ import crypto from 'crypto';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { sendTicketConfirmation } from '../utils/emailSender.js';
+import { sendTicketEmail } from '../utils/emailSender.js';
+import { validateCaptcha } from '../utils/captchaUtils.js';
+import { canSubmitTicket, recordSubmission } from '../utils/ticketRateLimit.js';
 
 const prisma = new PrismaClient();
 
 // Generate tracking ID
-const generateTrackingId = () => {
-  return crypto.randomBytes(4).toString('hex').toUpperCase();
+const generateTrackingId = (ticketId) => {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}${month}${day}-${ticketId}`;
 };
 
 // Send ticket confirmation email using our utility
-const sendTicketEmail = async (ticket, trackingId) => {
+const sendTicketConfirmationEmail = async (ticket) => {
   try {
-    // Get email settings from global app settings or use defaults
-    let emailSettings = null;
-    if (global.appSettings && global.appSettings.email) {
-      emailSettings = global.appSettings.email;
-      
-      // Explicitly check if notifications are enabled (true)
-      // This ensures we don't send if enableNotifications is false or undefined
-      if (emailSettings.enableNotifications !== true) {
-        return; // Exit early if notifications are not explicitly enabled
-      }
-      
-      // Only send if we have email settings configured
-      if (emailSettings.smtpUser && emailSettings.smtpPassword) {
-        // Create a pseudo user object from ticket data
-        const user = {
-          name: ticket.name,
-          email: ticket.email
-        };
-
-        await sendTicketConfirmation(ticket, user, emailSettings);
-      }
+    if (!ticket.email || !ticket.trackingId) {
+      console.log('Missing email or trackingId for confirmation email:', ticket);
+      return;
     }
+    await sendTicketEmail({
+      email: ticket.email,
+      name: ticket.name,
+      trackingId: ticket.trackingId,
+      category: ticket.category,
+      subject: ticket.subject || ticket.documentSubject,
+      message: ticket.message || ticket.documentMessage
+    });
   } catch (error) {
-    console.error('Error sending ticket email:', error);
+    console.error('Error sending ticket confirmation email:', error);
     // Don't throw error to prevent blocking ticket creation
   }
 };
@@ -141,93 +137,121 @@ const upload = multer({
 
 // Create document upload ticket
 const createDocumentUploadTicket = async (req, res) => {
-  upload(req, res, async (err) => {
-    try {
-      if (err instanceof multer.MulterError) {
-        if (err.code === 'LIMIT_FILE_SIZE') {
-          return res.status(400).json({ 
-            message: 'File size exceeds the 2MB limit.' 
-          });
-        }
-        return res.status(400).json({ 
-          message: `File upload error: ${err.message}` 
-        });
-      } else if (err) {
-        return res.status(400).json({ 
-          message: err.message 
-        });
-      }
+  try {
+    const {
+      name,
+      email,
+      priority,
+      location,
+      subject,
+      message,
+      captchaId,
+      captchaCode
+    } = req.body;
 
-      const {
-        name,
-        email,
-        priority,
-        location,
-        subject,
-        message
-      } = req.body;
+    const clientIp = req.ip || req.connection.remoteAddress;
 
-      // Validate required fields
-      if (!name || !email || !priority || !location || !subject || !message) {
-        return res.status(400).json({ 
-          message: 'All fields are required' 
-        });
-      }
-
-      // Generate tracking ID
-      const trackingId = generateTrackingId();
-
-      // Create ticket with file information
-      const ticket = await prisma.ticket.create({
+    // Create ticket with attachment in a single transaction
+    const ticket = await prisma.$transaction(async (prisma) => {
+      // Create the ticket first
+      const newTicket = await prisma.ticket.create({
         data: {
-          category: 'DOCUMENT_UPLOAD',
           name,
           email,
           priority,
-          status: 'PENDING',
-          trackingId,
           location,
-          documentSubject: subject,
-          documentMessage: message,
+          subject,
+          message,
+          category: 'DOCUMENT_UPLOAD',
+          status: 'PENDING',
           categorySpecificDetails: {
-            type: 'Document Processing',
-            details: {
-              subject,
-              message,
-              fileName: req.file ? req.file.filename : null,
-              originalFileName: req.file ? req.file.originalname : null,
-              fileType: req.file ? req.file.mimetype : null,
-              fileSize: req.file ? req.file.size : null,
-              filePath: req.file ? req.file.path : null,
-              uploadDate: new Date().toISOString()
-            }
+            documentSubject: subject,
+            documentMessage: message,
+            department: 'Document Processing'
           }
         }
       });
 
-      // Send confirmation email
-      await sendTicketEmail(ticket, trackingId);
+      // Generate tracking ID
+      const trackingId = generateTrackingId(newTicket.id);
 
-      // Return success response
-      res.status(201).json({
-        message: 'Document upload ticket created successfully',
-        ticketId: ticket.id,
-        trackingId: ticket.trackingId
+      // Update ticket with tracking ID
+      const updatedTicket = await prisma.ticket.update({
+        where: { id: newTicket.id },
+        data: { trackingId }
       });
 
-    } catch (error) {
-      console.error('Error creating document upload ticket:', error);
-      res.status(500).json({ 
-        message: 'Failed to create document upload ticket' 
-      });
-    }
-  });
+      // If file was uploaded, create attachment
+      if (req.file) {
+        await prisma.attachment.create({
+          data: {
+            filename: req.file.filename,
+            path: req.file.path,
+            mimetype: req.file.mimetype,
+            ticketId: updatedTicket.id
+          }
+        });
+      }
+
+      return updatedTicket;
+    });
+
+    // Send confirmation email
+    await sendTicketConfirmationEmail(ticket);
+
+    return res.status(201).json({
+      success: true,
+      message: 'Document upload ticket created successfully',
+      trackingId: ticket.trackingId
+    });
+  } catch (error) {
+    console.error('Error creating document upload ticket:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to create document upload ticket'
+    });
+  }
 };
 
 // Create ticket based on category
 const createTicket = async (req, res) => {
   try {
-    const { category } = req.body;
+    const { category, captchaId, captchaCode, ...ticketData } = req.body;
+    const clientIp = req.ip || req.connection.remoteAddress;
+
+    // Validate CAPTCHA
+    if (!captchaId || !captchaCode) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'CAPTCHA verification required' 
+      });
+    }
+
+    try {
+      const isCaptchaValid = validateCaptcha(captchaId, captchaCode, clientIp);
+      if (!isCaptchaValid) {
+        return res.status(400).json({ 
+          success: false,
+          message: 'Invalid or expired CAPTCHA code' 
+        });
+      }
+    } catch (error) {
+      return res.status(429).json({ 
+        success: false,
+        message: error.message 
+      });
+    }
+
+    // Check rate limiting
+    try {
+      canSubmitTicket(ticketData.email, clientIp);
+    } catch (error) {
+      return res.status(429).json({
+        success: false,
+        message: error.message
+      });
+    }
+
     let validationSchema;
 
     switch (category) {
@@ -241,48 +265,60 @@ const createTicket = async (req, res) => {
         validationSchema = documentUploadSchema;
         break;
       default:
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Invalid ticket category' 
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid ticket category'
         });
     }
 
-    const validatedData = validationSchema.parse(req.body);
-    const trackingId = generateTrackingId();
-
-    const ticket = await prisma.ticket.create({
-      data: {
-        ...validatedData,
-        trackingId,
-      },
-    });
-
-    // Send confirmation email
-    await sendTicketEmail(ticket, trackingId);
-
-    res.status(201).json({
-      success: true,
-      message: 'Ticket created successfully',
-      ticketId: ticket.id,
-      trackingId: trackingId
-    });
-  } catch (error) {
-    console.error('Error creating ticket:', error);
-    
-    if (error instanceof z.ZodError) {
+    try {
+      validationSchema.parse({ category, ...ticketData });
+    } catch (error) {
       return res.status(400).json({
         success: false,
-        message: 'Validation error',
-        errors: error.errors.map(err => ({
-          field: err.path.join('.'),
-          message: err.message
-        }))
+        message: 'Validation failed',
+        errors: formatValidationErrors(error.errors)
       });
     }
 
-    res.status(500).json({
+    // Create ticket first to get the ID
+    const ticket = await prisma.ticket.create({
+      data: {
+        ...ticketData,
+        category,
+        status: 'PENDING'
+      }
+    });
+
+    // Generate tracking ID using the ticket ID
+    const trackingId = generateTrackingId(ticket.id);
+
+    // Update the ticket with the tracking ID
+    const updatedTicket = await prisma.ticket.update({
+      where: { id: ticket.id },
+      data: { trackingId }
+    });
+
+    // Record successful submission for rate limiting
+    recordSubmission(ticketData.email, clientIp);
+
+    if (updatedTicket.email) {
+      await sendTicketConfirmationEmail(updatedTicket);
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: 'Ticket created successfully',
+      ticketId: updatedTicket.id,
+      trackingId: updatedTicket.trackingId
+    });
+
+  } catch (error) {
+    console.error('Error creating ticket:', error);
+    return res.status(500).json({
       success: false,
-      message: 'Failed to create ticket'
+      message: 'Failed to create ticket',
+      error: error.message
     });
   }
 };
@@ -491,22 +527,22 @@ const deleteTicket = async (req, res) => {
 
 const trackTicket = async (req, res) => {
   try {
-    const { ticketId, email } = req.body;
+    const { trackingId, email } = req.body;
 
     // Validate input
-    if (!ticketId || !email) {
+    if (!trackingId || !email) {
       return res.status(400).json({
         success: false,
-        message: 'Ticket ID and email are required'
+        message: 'Tracking ID and email are required'
       });
     }
 
-    // Validate ticket ID is a valid number
-    const parsedTicketId = parseInt(ticketId);
-    if (isNaN(parsedTicketId)) {
+    // Validate tracking ID format
+    const trackingIdRegex = /^\d{8}-\d+$/;
+    if (!trackingIdRegex.test(trackingId)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid ticket ID format'
+        message: 'Invalid tracking ID format. Expected format: YYYYMMDD-TICKETID'
       });
     }
 
@@ -514,7 +550,7 @@ const trackTicket = async (req, res) => {
     const ticket = await prisma.ticket.findFirst({
       where: {
         AND: [
-          { id: parsedTicketId },
+          { trackingId },
           { email: email }
         ]
       },
@@ -528,6 +564,12 @@ const trackTicket = async (req, res) => {
         createdAt: true,
         updatedAt: true,
         trackingId: true,
+        // ICT Support fields
+        ictAssignedTo: true,
+        ictDiagnosisDetails: true,
+        ictFixDetails: true,
+        ictDateFixed: true,
+        ictRecommendations: true,
         // Troubleshooting specific fields
         location: true,
         dateOfRequest: true,
@@ -551,7 +593,7 @@ const trackTicket = async (req, res) => {
     if (!ticket) {
       return res.status(404).json({
         success: false,
-        message: 'No ticket found with the provided ID and email'
+        message: 'No ticket found with the provided tracking ID and email'
       });
     }
 
@@ -620,6 +662,7 @@ const getCategorySpecificDetails = (ticket) => {
   }
 };
 
+// Create account management ticket
 const createAccountManagementTicket = async (req, res) => {
   try {
     const {
@@ -628,45 +671,64 @@ const createAccountManagementTicket = async (req, res) => {
       priority,
       accountType,
       actionType,
+      locationType,
+      schoolLevel,
+      schoolName,
+      department,
       subject,
-      message
+      message,
+      captchaId,
+      captchaCode
     } = req.body;
 
-    // Validate required fields
-    if (!name || !email || !priority || !accountType || !actionType || !subject || !message) {
-      return res.status(400).json({ message: 'All fields are required' });
+    // Validate CAPTCHA
+    const isValidCaptcha = await validateCaptcha(captchaId, captchaCode, req.ip);
+    if (!isValidCaptcha) {
+      return res.status(400).json({ message: 'Invalid verification code. Please try again.' });
     }
 
-    // Generate a unique tracking ID
-    const trackingId = generateTrackingId();
-
-    // Create the ticket
+    // Create ticket with tracking ID
     const ticket = await prisma.ticket.create({
       data: {
         category: 'ACCOUNT_MANAGEMENT',
         name,
         email,
         priority,
-        status: 'PENDING',
-        trackingId,
         accountType,
         actionType,
+        locationType,
+        schoolLevel: schoolLevel || null,
+        schoolName: schoolName || null,
+        department: department || null,
         subject,
         message,
-        categorySpecificDetails: {
-          accountType,
-          actionType
-        }
+        status: 'PENDING'
       }
     });
 
+    // Generate tracking ID based on ticket ID
+    const trackingId = generateTrackingId(ticket.id);
+
+    // Update ticket with tracking ID
+    const updatedTicket = await prisma.ticket.update({
+      where: { id: ticket.id },
+      data: { trackingId }
+    });
+
     // Send confirmation email
-    await sendTicketEmail(ticket, trackingId);
+    await sendTicketConfirmationEmail({
+      email,
+      name,
+      trackingId,
+      category: 'Account Management',
+      subject,
+      message
+    });
 
     res.status(201).json({
       message: 'Account management ticket created successfully',
       ticketId: ticket.id,
-      trackingId: ticket.trackingId
+      trackingId
     });
   } catch (error) {
     console.error('Error creating account management ticket:', error);
@@ -677,67 +739,100 @@ const createAccountManagementTicket = async (req, res) => {
 // Create troubleshooting ticket
 const createTroubleshootingTicket = async (req, res) => {
   try {
-    const {
-      name,
-      email,
-      locationType,
-      school,
-      dateOfRequest,
-      typeOfEquipment,
-      modelOfEquipment,
-      serialNo,
-      specificProblem,
-      priority
-    } = req.body;
+    const { captchaId, captchaCode, ...ticketData } = req.body;
+    const clientIp = req.ip || req.connection.remoteAddress;
 
-    // Validate required fields
-    if (!name || !email || !locationType || !dateOfRequest || !typeOfEquipment || !modelOfEquipment || !serialNo || !specificProblem || !priority) {
-      return res.status(400).json({ message: 'All fields are required' });
+    // Validate CAPTCHA
+    if (!captchaId || !captchaCode) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'CAPTCHA verification required' 
+      });
     }
 
-    // Generate a unique tracking ID
-    const trackingId = generateTrackingId();
+    try {
+      const isCaptchaValid = validateCaptcha(captchaId, captchaCode, clientIp);
+      if (!isCaptchaValid) {
+        return res.status(400).json({ 
+          success: false,
+          message: 'Invalid or expired CAPTCHA code' 
+        });
+      }
+    } catch (error) {
+      return res.status(429).json({ 
+        success: false,
+        message: error.message 
+      });
+    }
 
-    // Create the ticket
+    // Check rate limiting
+    try {
+      canSubmitTicket(ticketData.email, clientIp);
+    } catch (error) {
+      return res.status(429).json({
+        success: false,
+        message: error.message
+      });
+    }
+
+    // Create ticket first to get the ID
     const ticket = await prisma.ticket.create({
       data: {
         category: 'TROUBLESHOOTING',
-        name,
-        email,
-        priority,
+        name: ticketData.name,
+        email: ticketData.email,
+        department: ticketData.department,
+        location: ticketData.locationType === 'SCHOOL' ? ticketData.school : 'SDO - Imus City',
+        dateOfRequest: new Date(ticketData.dateOfRequest),
+        typeOfEquipment: ticketData.typeOfEquipment,
+        modelOfEquipment: ticketData.modelOfEquipment,
+        serialNo: ticketData.serialNo,
+        specificProblem: ticketData.specificProblem,
+        priority: ticketData.priority,
         status: 'PENDING',
-        trackingId,
-        location: locationType === 'SCHOOL' ? school : 'SDO - Imus City',
-        dateOfRequest: new Date(dateOfRequest),
-        typeOfEquipment,
-        modelOfEquipment,
-        serialNo,
-        specificProblem,
         categorySpecificDetails: {
           type: 'Technical Support',
           details: {
-            location: locationType === 'SCHOOL' ? school : 'SDO - Imus City',
-            dateOfRequest,
-            equipment: typeOfEquipment,
-            model: modelOfEquipment,
-            serialNo,
-            problem: specificProblem
+            location: ticketData.locationType === 'SCHOOL' ? ticketData.school : 'SDO - Imus City',
+            dateOfRequest: ticketData.dateOfRequest,
+            equipment: ticketData.typeOfEquipment,
+            model: ticketData.modelOfEquipment,
+            serialNo: ticketData.serialNo,
+            problem: ticketData.specificProblem
           }
         }
       }
     });
 
-    // Send confirmation email
-    await sendTicketEmail(ticket, trackingId);
+    // Generate tracking ID using the ticket ID
+    const trackingId = generateTrackingId(ticket.id);
 
-    res.status(201).json({
-      message: 'Troubleshooting ticket created successfully',
-      ticketId: ticket.id,
-      trackingId: ticket.trackingId
+    // Update the ticket with the tracking ID
+    const updatedTicket = await prisma.ticket.update({
+      where: { id: ticket.id },
+      data: { trackingId }
+    });
+
+    // Record successful submission for rate limiting
+    recordSubmission(ticketData.email, clientIp);
+
+    if (updatedTicket.email) {
+      await sendTicketConfirmationEmail(updatedTicket);
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: 'Ticket created successfully',
+      ticketId: updatedTicket.id,
+      trackingId: updatedTicket.trackingId
     });
   } catch (error) {
     console.error('Error creating troubleshooting ticket:', error);
-    res.status(500).json({ message: 'Failed to create troubleshooting ticket' });
+    return res.status(500).json({ 
+      success: false,
+      message: 'Failed to create troubleshooting ticket', 
+      error: error.message 
+    });
   }
 };
 

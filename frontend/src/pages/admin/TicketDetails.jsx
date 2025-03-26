@@ -43,6 +43,14 @@ const TicketDetails = () => {
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [newStatus, setNewStatus] = useState('');
   const [comment, setComment] = useState('');
+  const [ictDetailsDialogOpen, setIctDetailsDialogOpen] = useState(false);
+  const [ictDetails, setIctDetails] = useState({
+    assignedTo: '',
+    diagnosisDetails: '',
+    fixDetails: '',
+    dateFixed: '',
+    recommendations: ''
+  });
 
   // Fetch ticket details
   const fetchTicketDetails = useCallback(async () => {
@@ -147,6 +155,31 @@ const TicketDetails = () => {
     }
   };
 
+  // Handle ICT details update
+  const handleIctDetailsUpdate = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.put(
+        `${API_BASE_URL}/admin/tickets/${id}/ict-details`,
+        ictDetails,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.data.success) {
+        setIctDetailsDialogOpen(false);
+        fetchTicketDetails();
+      } else {
+        throw new Error(response.data.message);
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to update ICT details');
+    }
+  };
+
   const getStatusColor = (status) => {
     const colors = {
       PENDING: 'warning',
@@ -158,7 +191,16 @@ const TicketDetails = () => {
   };
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleString();
+    if (!dateString) return 'Not available';
+    const date = new Date(dateString);
+    return date.toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
   };
 
   if (loading) {
@@ -270,18 +312,38 @@ const TicketDetails = () => {
           </Grid>
 
           <Grid item xs={12} md={6}>
-            <Typography variant="h6" gutterBottom>
-              User Information
-            </Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="h6">
+                ICT Support Information
+              </Typography>
+              <Button
+                variant="contained"
+                color="primary"
+                size="small"
+                onClick={() => {
+                  setIctDetails({
+                    assignedTo: ticket.ictAssignedTo || '',
+                    diagnosisDetails: ticket.ictDiagnosisDetails || '',
+                    fixDetails: ticket.ictFixDetails || '',
+                    dateFixed: ticket.ictDateFixed || '',
+                    recommendations: ticket.ictRecommendations || ''
+                  });
+                  setNewStatus('IN_PROGRESS');
+                  setIctDetailsDialogOpen(true);
+                }}
+              >
+                Take Action
+              </Button>
+            </Box>
             <List>
               <ListItem>
                 <ListItemText
-                  primary="Submitted By"
+                  primary="Assigned To"
                   secondary={
                     <Typography component="span" variant="body2">
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <PersonIcon fontSize="small" />
-                        {ticket.user?.name || 'N/A'}
+                        {ticket.ictAssignedTo || 'Not yet assigned'}
                       </Box>
                     </Typography>
                   }
@@ -289,14 +351,26 @@ const TicketDetails = () => {
               </ListItem>
               <ListItem>
                 <ListItemText
-                  primary="Email"
-                  secondary={ticket.user?.email || 'N/A'}
+                  primary="Diagnosis Details"
+                  secondary={ticket.ictDiagnosisDetails || 'No diagnosis provided'}
                 />
               </ListItem>
               <ListItem>
                 <ListItemText
-                  primary="Department"
-                  secondary={ticket.user?.department || 'N/A'}
+                  primary="Fix Details"
+                  secondary={ticket.ictFixDetails || 'No fix details provided'}
+                />
+              </ListItem>
+              <ListItem>
+                <ListItemText
+                  primary="Date Fixed"
+                  secondary={ticket.ictDateFixed ? formatDate(ticket.ictDateFixed) : 'Not yet fixed'}
+                />
+              </ListItem>
+              <ListItem>
+                <ListItemText
+                  primary="Recommendations"
+                  secondary={ticket.ictRecommendations || 'No recommendations provided'}
                 />
               </ListItem>
             </List>
@@ -508,9 +582,11 @@ const TicketDetails = () => {
                         <ListItemText
                           primary={key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1')}
                           secondary={
-                            typeof value === 'object' 
-                              ? JSON.stringify(value) 
-                              : String(value)
+                            key.toLowerCase().includes('date') 
+                              ? formatDate(value)
+                              : typeof value === 'object' 
+                                ? JSON.stringify(value) 
+                                : String(value)
                           }
                         />
                       </ListItem>
@@ -584,6 +660,90 @@ const TicketDetails = () => {
           <Button onClick={() => setStatusDialogOpen(false)}>Cancel</Button>
           <Button onClick={handleStatusUpdate} variant="contained" color="primary">
             Update Status
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ICT Details Update Dialog */}
+      <Dialog 
+        open={ictDetailsDialogOpen} 
+        onClose={() => setIctDetailsDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Take Action on Ticket</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
+            <Alert severity="info" sx={{ mb: 1 }}>
+              Taking action on this ticket will automatically set its status to "In Progress"
+            </Alert>
+            <TextField
+              fullWidth
+              label="Assigned To"
+              value={ictDetails.assignedTo}
+              onChange={(e) => setIctDetails({ ...ictDetails, assignedTo: e.target.value })}
+              placeholder="Name of ICT staff assigned"
+              required
+            />
+            <TextField
+              fullWidth
+              multiline
+              rows={3}
+              label="Diagnosis Details"
+              value={ictDetails.diagnosisDetails}
+              onChange={(e) => setIctDetails({ ...ictDetails, diagnosisDetails: e.target.value })}
+              placeholder="Detailed diagnosis of the issue"
+              required
+            />
+            <TextField
+              fullWidth
+              multiline
+              rows={3}
+              label="Fix Details"
+              value={ictDetails.fixDetails}
+              onChange={(e) => setIctDetails({ ...ictDetails, fixDetails: e.target.value })}
+              placeholder="Details of how the issue was fixed"
+            />
+            <TextField
+              fullWidth
+              type="datetime-local"
+              label="Date Fixed"
+              value={ictDetails.dateFixed}
+              onChange={(e) => setIctDetails({ ...ictDetails, dateFixed: e.target.value })}
+              InputLabelProps={{ shrink: true }}
+            />
+            <TextField
+              fullWidth
+              multiline
+              rows={3}
+              label="Recommendations"
+              value={ictDetails.recommendations}
+              onChange={(e) => setIctDetails({ ...ictDetails, recommendations: e.target.value })}
+              placeholder="Any recommendations for preventing similar issues"
+            />
+            <TextField
+              fullWidth
+              multiline
+              rows={4}
+              label="Status Update Comment"
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder="Add a comment about the actions taken..."
+              required
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setIctDetailsDialogOpen(false)}>Cancel</Button>
+          <Button 
+            onClick={async () => {
+              await handleIctDetailsUpdate();
+              await handleStatusUpdate();
+            }} 
+            variant="contained" 
+            color="primary"
+          >
+            Submit Action
           </Button>
         </DialogActions>
       </Dialog>

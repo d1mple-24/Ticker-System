@@ -213,8 +213,14 @@ router.get('/tickets', authenticateToken, isAdmin, async (req, res) => {
     if (category) where.category = category;
     if (search) {
       where.OR = [
+        { name: { contains: search } },
+        { email: { contains: search } },
+        { trackingId: { contains: search } },
+        { documentSubject: { contains: search } },
+        { documentMessage: { contains: search } },
         { subject: { contains: search } },
-        { message: { contains: search } }
+        { message: { contains: search } },
+        { specificProblem: { contains: search } }
       ];
     }
 
@@ -439,6 +445,44 @@ router.put('/tickets/:id/status', authenticateToken, isAdmin, async (req, res) =
   }
 });
 
+// Update ICT details for a ticket
+router.put('/tickets/:id/ict-details', authenticateToken, async (req, res) => {
+  try {
+    const ticketId = parseInt(req.params.id);
+    const {
+      assignedTo,
+      diagnosisDetails,
+      fixDetails,
+      dateFixed,
+      recommendations
+    } = req.body;
+
+    const updatedTicket = await prisma.ticket.update({
+      where: { id: ticketId },
+      data: {
+        ictAssignedTo: assignedTo,
+        ictDiagnosisDetails: diagnosisDetails,
+        ictFixDetails: fixDetails,
+        ictDateFixed: dateFixed ? new Date(dateFixed) : null,
+        ictRecommendations: recommendations,
+        updatedAt: new Date()
+      }
+    });
+
+    res.json({
+      success: true,
+      message: 'ICT details updated successfully',
+      data: updatedTicket
+    });
+  } catch (error) {
+    console.error('Error updating ICT details:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update ICT details'
+    });
+  }
+});
+
 // Get system settings
 router.get('/settings', authenticateToken, isAdmin, async (req, res) => {
   try {
@@ -501,41 +545,68 @@ router.get('/settings', authenticateToken, isAdmin, async (req, res) => {
   }
 });
 
-router.post('/settings', authenticateToken, isAdmin, async (req, res) => {
+// Update general settings
+router.post('/settings/general', authenticateToken, isAdmin, async (req, res) => {
   try {
-    // In a real app, you would save the settings to a database
-    // For now, we'll store them in memory for the demo
-    console.log('Settings update received:', req.body);
-    
-    // Initialize global app settings if not exists
     if (!global.appSettings) {
       global.appSettings = {};
     }
     
-    // Store settings in global app state so both admin and public endpoints can access them
-    if (req.body.categories) {
-      global.appSettings.categories = req.body.categories;
-    }
-    
-    if (req.body.email) {
-      global.appSettings.email = req.body.email;
-    }
-    
-    if (req.body.general) {
-      global.appSettings.general = req.body.general;
-    }
-    
-    console.log('Updated global app settings:', JSON.stringify(global.appSettings, null, 2));
+    global.appSettings.general = req.body.general;
     
     res.json({
       success: true,
-      message: 'Settings updated successfully'
+      message: 'General settings updated successfully'
     });
   } catch (error) {
-    console.error('Error updating settings:', error);
+    console.error('Error updating general settings:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to update settings'
+      message: 'Failed to update general settings'
+    });
+  }
+});
+
+// Update email settings
+router.post('/settings/email', authenticateToken, isAdmin, async (req, res) => {
+  try {
+    if (!global.appSettings) {
+      global.appSettings = {};
+    }
+    
+    global.appSettings.email = req.body.email;
+    
+    res.json({
+      success: true,
+      message: 'Email settings updated successfully'
+    });
+  } catch (error) {
+    console.error('Error updating email settings:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update email settings'
+    });
+  }
+});
+
+// Update category settings
+router.post('/settings/categories', authenticateToken, isAdmin, async (req, res) => {
+  try {
+    if (!global.appSettings) {
+      global.appSettings = {};
+    }
+    
+    global.appSettings.categories = req.body.categories;
+    
+    res.json({
+      success: true,
+      message: 'Category settings updated successfully'
+    });
+  } catch (error) {
+    console.error('Error updating category settings:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update category settings'
     });
   }
 });

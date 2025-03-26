@@ -262,7 +262,7 @@ const ManageTickets = () => {
           <TableHead>
             <TableRow>
               <TableCell>ID</TableCell>
-              <TableCell>Subject</TableCell>
+              <TableCell>Tracking ID</TableCell>
               <TableCell>Category</TableCell>
               <TableCell>Status</TableCell>
               <TableCell>Priority</TableCell>
@@ -283,7 +283,7 @@ const ManageTickets = () => {
                 }}
               >
                 <TableCell>{ticket.id}</TableCell>
-                <TableCell>{ticket.subject || ticket.documentSubject}</TableCell>
+                <TableCell>{ticket.trackingId}</TableCell>
                 <TableCell>{ticket.category}</TableCell>
                 <TableCell>
                   <Typography color={getStatusColor(ticket.status)}>

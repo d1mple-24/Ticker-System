@@ -3,7 +3,7 @@ import { createTheme } from '@mui/material/styles';
 const theme = createTheme({
   palette: {
     primary: {
-      main: '#0288d1', // Light blue for main actions
+      main: '#1976d2', // Updated to match the icon color
       contrastText: '#fff',
     },
     secondary: {
@@ -11,17 +11,29 @@ const theme = createTheme({
       contrastText: '#fff',
     },
     background: {
-      default: '#f5f5f5',
+      default: '#f2e8d5', // Soft beige background matching the DepEd building
+      paper: '#fcf8f0',   // Lighter beige for paper elements
     },
   },
   typography: {
-    fontFamily: '"Roboto", "Arial", sans-serif',
+    fontFamily: '"Lisu Bosa", "Roboto", "Arial", sans-serif',
     h4: {
       fontWeight: 700,
       fontSize: '1.75rem',
+      fontFamily: '"Lisu Bosa", serif',
     },
     h6: {
       fontWeight: 500,
+      fontFamily: '"Lisu Bosa", serif',
+    },
+    body1: {
+      fontFamily: '"Lisu Bosa", serif',
+    },
+    body2: {
+      fontFamily: '"Lisu Bosa", serif',
+    },
+    button: {
+      fontFamily: '"Lisu Bosa", serif',
     },
   },
   components: {
@@ -48,6 +60,14 @@ const theme = createTheme({
       styleOverrides: {
         root: {
           borderRadius: 8,
+        },
+      },
+    },
+    MuiCssBaseline: {
+      styleOverrides: {
+        body: {
+          backgroundImage: 'linear-gradient(to right, #f2e8d5, #f9f3e3)',
+          backgroundAttachment: 'fixed',
         },
       },
     },

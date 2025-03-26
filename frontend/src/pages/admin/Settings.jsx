@@ -24,7 +24,6 @@ import {
 import {
   ExpandMore as ExpandMoreIcon,
   Save as SaveIcon,
-  Refresh as RefreshIcon,
   Email as EmailIcon,
 } from '@mui/icons-material';
 import axios from 'axios';
@@ -105,7 +104,36 @@ const Settings = () => {
     }
   };
 
-  const saveSettings = async () => {
+  const saveGeneralSettings = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const response = await axios.post(`${API_BASE_URL}/admin/settings/general`, { general: generalSettings }, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        }
+      });
+
+      if (response.data.success) {
+        setSaveSuccess(true);
+        setError(null);
+      } else {
+        throw new Error(response.data.message);
+      }
+    } catch (err) {
+      console.error('Error saving general settings:', err);
+      setError(err.response?.data?.message || err.message || 'Failed to save general settings');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveEmailSettings = async () => {
     try {
       // Validate email settings if notifications are enabled
       if (emailSettings.enableNotifications) {
@@ -117,7 +145,6 @@ const Settings = () => {
           return;
         }
         
-        // Gmail validation
         if (emailSettings.smtpHost.includes('gmail') && !emailSettings.smtpUser.includes('@')) {
           setError('Gmail username must be a complete email address');
           return;
@@ -131,31 +158,51 @@ const Settings = () => {
         throw new Error('No authentication token found');
       }
 
-      const settings = {
-        general: generalSettings,
-        email: emailSettings,
-        categories: categorySettings
-      };
-
-      const response = await axios.post(`${API_BASE_URL}/admin/settings`, settings, {
+      const response = await axios.post(`${API_BASE_URL}/admin/settings/email`, { email: emailSettings }, {
         headers: {
           Authorization: `Bearer ${token}`,
         }
       });
 
       if (response.data.success) {
-        // Update localStorage with the latest category settings
-        // This ensures the changes are immediately reflected in the UI
-        localStorage.setItem('ticketCategories', JSON.stringify(categorySettings.ticketCategories));
-        
         setSaveSuccess(true);
         setError(null);
       } else {
         throw new Error(response.data.message);
       }
     } catch (err) {
-      console.error('Error saving settings:', err);
-      setError(err.response?.data?.message || err.message || 'Failed to save settings');
+      console.error('Error saving email settings:', err);
+      setError(err.response?.data?.message || err.message || 'Failed to save email settings');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveCategorySettings = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const response = await axios.post(`${API_BASE_URL}/admin/settings/categories`, { categories: categorySettings }, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        }
+      });
+
+      if (response.data.success) {
+        localStorage.setItem('ticketCategories', JSON.stringify(categorySettings.ticketCategories));
+        setSaveSuccess(true);
+        setError(null);
+      } else {
+        throw new Error(response.data.message);
+      }
+    } catch (err) {
+      console.error('Error saving category settings:', err);
+      setError(err.response?.data?.message || err.message || 'Failed to save category settings');
     } finally {
       setLoading(false);
     }
@@ -277,7 +324,7 @@ const Settings = () => {
 
   return (
     <Box sx={{ p: 3 }}>
-      <Typography variant="h4" gutterBottom>System Settings</Typography>
+      <Typography variant="h4" gutterBottom sx={{ fontFamily: '"Lisu Bosa", serif' }}>System Settings</Typography>
       
       {error && (
         <Alert severity="error" sx={{ mb: 3 }}>
@@ -294,7 +341,7 @@ const Settings = () => {
               aria-controls="general-settings-content"
               id="general-settings-header"
             >
-              <Typography variant="h6">General Settings</Typography>
+              <Typography variant="h6" sx={{ fontFamily: '"Lisu Bosa", serif' }}>General Settings</Typography>
             </AccordionSummary>
             <AccordionDetails>
               <Grid container spacing={3}>
@@ -353,6 +400,17 @@ const Settings = () => {
                 </Grid>
               </Grid>
             </AccordionDetails>
+            <Box sx={{ p: 2, borderTop: '1px solid rgba(0, 0, 0, 0.12)', display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={saveGeneralSettings}
+                disabled={loading}
+                startIcon={loading ? <CircularProgress size={20} /> : <SaveIcon />}
+              >
+                {loading ? 'Saving...' : 'Save General Settings'}
+              </Button>
+            </Box>
           </Accordion>
         </Grid>
         
@@ -364,7 +422,7 @@ const Settings = () => {
               aria-controls="email-settings-content"
               id="email-settings-header"
             >
-              <Typography variant="h6">Email Notifications</Typography>
+              <Typography variant="h6" sx={{ fontFamily: '"Lisu Bosa", serif' }}>Email Notifications</Typography>
             </AccordionSummary>
             <AccordionDetails>
               <Grid container spacing={3}>
@@ -518,6 +576,17 @@ const Settings = () => {
                 )}
               </Grid>
             </AccordionDetails>
+            <Box sx={{ p: 2, borderTop: '1px solid rgba(0, 0, 0, 0.12)', display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={saveEmailSettings}
+                disabled={loading}
+                startIcon={loading ? <CircularProgress size={20} /> : <SaveIcon />}
+              >
+                {loading ? 'Saving...' : 'Save Email Settings'}
+              </Button>
+            </Box>
           </Accordion>
         </Grid>
         
@@ -529,7 +598,7 @@ const Settings = () => {
               aria-controls="category-settings-content"
               id="category-settings-header"
             >
-              <Typography variant="h6">Ticket Categories</Typography>
+              <Typography variant="h6" sx={{ fontFamily: '"Lisu Bosa", serif' }}>Ticket Categories</Typography>
             </AccordionSummary>
             <AccordionDetails>
               <Typography variant="body2" color="textSecondary" paragraph>
@@ -573,56 +642,22 @@ const Settings = () => {
                 ))}
               </Grid>
             </AccordionDetails>
+            <Box sx={{ p: 2, borderTop: '1px solid rgba(0, 0, 0, 0.12)', display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={saveCategorySettings}
+                disabled={loading}
+                startIcon={loading ? <CircularProgress size={20} /> : <SaveIcon />}
+              >
+                {loading ? 'Saving...' : 'Save Category Settings'}
+              </Button>
+            </Box>
           </Accordion>
         </Grid>
       </Grid>
       
-      {/* Action Buttons */}
-      <Box sx={{ mt: 4, display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
-        <Button
-          variant="outlined"
-          color="secondary"
-          onClick={fetchSettings}
-          disabled={loading}
-          sx={{
-            minWidth: '120px',
-            height: '42px',
-          }}
-        >
-          {loading ? (
-            <CircularProgress size={24} sx={{ color: 'secondary.main' }} />
-          ) : (
-            <>
-              <RefreshIcon sx={{ mr: 1 }} />
-              Reset
-            </>
-          )}
-        </Button>
-        <Button
-          variant="contained"
-          color="primary"
-          onClick={saveSettings}
-          disabled={loading}
-          sx={{
-            minWidth: '150px',
-            height: '42px',
-          }}
-        >
-          {loading ? (
-            <>
-              <CircularProgress size={24} sx={{ color: 'white', mr: 1 }} />
-              Saving...
-            </>
-          ) : (
-            <>
-              <SaveIcon sx={{ mr: 1 }} />
-              Save Settings
-            </>
-          )}
-        </Button>
-      </Box>
-      
-      {/* Success Messages */}
+      {/* Success Message */}
       <Snackbar
         open={saveSuccess}
         autoHideDuration={6000}
