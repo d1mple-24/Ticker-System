@@ -434,8 +434,8 @@ const Troubleshooting = () => {
                   MenuProps={{
                     PaperProps: {
                       style: {
-                        maxHeight: 300,
-                        width: '60%'
+                        maxHeight: 200,
+                        width: '50%'
                       },
                     },
                   }}
@@ -498,8 +498,8 @@ const Troubleshooting = () => {
                   MenuProps={{
                     PaperProps: {
                       style: {
-                        maxHeight: 300,
-                        width: '60%'
+                        maxHeight: 200,
+                        width: '50%'
                       },
                     },
                   }}

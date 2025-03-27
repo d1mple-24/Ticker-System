@@ -9,7 +9,8 @@ import {
   trackTicket,
   createAccountManagementTicket,
   createTroubleshootingTicket,
-  createDocumentUploadTicket
+  createDocumentUploadTicket,
+  createTechnicalAssistanceTicket
 } from '../controllers/ticketController.js';
 import { generateCaptcha } from '../utils/captchaUtils.js';
 import { upload } from '../middleware/multerMiddleware.js';
@@ -39,6 +40,7 @@ router.get('/generate-captcha', (req, res) => {
 router.post('/troubleshooting', createTroubleshootingTicket);
 router.post('/account-management', createAccountManagementTicket);
 router.post('/document-upload', upload, createDocumentUploadTicket);
+router.post('/technical-assistance', createTechnicalAssistanceTicket);
 router.post('/', createTicket);
 router.post('/track', trackTicket);
 

@@ -24,7 +24,7 @@ model User {
 
 model Ticket {
   id                    Int       @id @default(autoincrement())
-  category              String?    // TROUBLESHOOTING, ACCOUNT_MANAGEMENT, DOCUMENT_UPLOAD
+  category              String?    // TROUBLESHOOTING, ACCOUNT_MANAGEMENT, DOCUMENT_UPLOAD, TECHNICAL_ASSISTANCE
   name                  String?
   email                 String?
   department            String?    // Department field for SDO tickets
@@ -33,6 +33,9 @@ model Ticket {
   trackingId            String?    @unique
   createdAt             DateTime?  @default(now())
   updatedAt             DateTime?  @updatedAt
+
+  // Technical Assistance specific fields
+  taType               String?    // DCP_MONITORING, AV_ASSISTANCE, ICT_TUTORIAL, ICT_ASSISTANCE, ID_PRINTING, BIOMETRICS_ENROLLMENT, ICT_EQUIPMENT_INSPECTION
 
   // ICT Support Details
   ictAssignedTo        String?    // Name of ICT staff assigned

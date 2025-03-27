@@ -188,6 +188,22 @@ const ManageTickets = () => {
     return colors[status] || 'text.primary';
   };
 
+  // Get priority color and style
+  const getPriorityStyle = (priority) => {
+    const styles = {
+      HIGH: { color: '#d32f2f', fontWeight: 'bold' }, // Red for high priority
+      MEDIUM: { color: '#ed6c02' }, // Orange for medium priority
+      LOW: { color: '#2e7d32' }, // Green for low priority
+    };
+    return styles[priority] || {};
+  };
+
+  // Sort tickets by priority (HIGH first)
+  const sortedTickets = [...tickets].sort((a, b) => {
+    const priorityOrder = { HIGH: 1, MEDIUM: 2, LOW: 3 };
+    return (priorityOrder[a.priority] || 4) - (priorityOrder[b.priority] || 4);
+  });
+
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
@@ -243,6 +259,7 @@ const ManageTickets = () => {
             <MenuItem value="TROUBLESHOOTING">Troubleshooting</MenuItem>
             <MenuItem value="ACCOUNT_MANAGEMENT">Account Management</MenuItem>
             <MenuItem value="DOCUMENT_UPLOAD">Document Upload</MenuItem>
+            <MenuItem value="TECHNICAL_ASSISTANCE">Technical Assistance</MenuItem>
           </Select>
         </FormControl>
 
@@ -271,7 +288,7 @@ const ManageTickets = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {tickets.map((ticket) => (
+            {sortedTickets.map((ticket) => (
               <TableRow 
                 key={ticket.id}
                 onClick={() => handleTicketClick(ticket.id)}
@@ -280,6 +297,9 @@ const ManageTickets = () => {
                   '&:hover': {
                     backgroundColor: 'action.hover',
                   },
+                  ...(ticket.priority === 'HIGH' && {
+                    backgroundColor: 'error.lighter',
+                  })
                 }}
               >
                 <TableCell>{ticket.id}</TableCell>
@@ -290,7 +310,11 @@ const ManageTickets = () => {
                     {ticket.status}
                   </Typography>
                 </TableCell>
-                <TableCell>{ticket.priority}</TableCell>
+                <TableCell>
+                  <Typography sx={getPriorityStyle(ticket.priority)}>
+                    {ticket.priority}
+                  </Typography>
+                </TableCell>
                 <TableCell>{formatDate(ticket.createdAt)}</TableCell>
                 <TableCell onClick={(e) => e.stopPropagation()}>
                   <Tooltip title="Update Status">

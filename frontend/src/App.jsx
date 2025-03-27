@@ -21,6 +21,7 @@ import TrackTicket from './pages/TrackTicket.jsx';
 import Survey from './pages/Survey.jsx';
 import AccountManagement from './pages/AccountManagement.jsx';
 import DocumentUpload from './pages/DocumentUpload.jsx';
+import TechnicalAssistance from './pages/TechnicalAssistance.jsx';
 import Dashboard from './pages/admin/Dashboard.jsx';
 import ManageTickets from './pages/admin/ManageTickets.jsx';
 import TicketDetails from './pages/admin/TicketDetails';
@@ -51,6 +52,7 @@ const router = createBrowserRouter(
       <Route path="/troubleshooting" element={<Troubleshooting />} />
       <Route path="/account" element={<AccountManagement />} />
       <Route path="/documents" element={<DocumentUpload />} />
+      <Route path="/technical-assistance" element={<TechnicalAssistance />} />
 
       {/* Admin Routes */}
       <Route path="/admin" element={<ProtectedRoute allowedRoles={["ADMIN"]}><AdminLayout /></ProtectedRoute>}>

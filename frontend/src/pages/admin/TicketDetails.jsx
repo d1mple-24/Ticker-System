@@ -203,6 +203,50 @@ const TicketDetails = () => {
     });
   };
 
+  // Add this helper function to format date for datetime-local input
+  const formatDateForInput = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toISOString().slice(0, 16); // Format: YYYY-MM-DDThh:mm
+  };
+
+  const handleIctActionClick = async () => {
+    try {
+      if (newStatus === 'RESOLVED') {
+        // Second stage: Resolve ticket
+        // Validate all required fields are filled
+        if (!ictDetails.diagnosisDetails || !ictDetails.fixDetails || !ictDetails.dateFixed || !ictDetails.recommendations) {
+          setError('Please fill in all required fields');
+          return;
+        }
+        setNewStatus('RESOLVED');
+        await handleIctDetailsUpdate();
+        await handleStatusUpdate();
+      } else {
+        // First stage: Assign ticket
+        setNewStatus('IN_PROGRESS');
+        await handleIctDetailsUpdate();
+        await handleStatusUpdate();
+      }
+      setIctDetailsDialogOpen(false);
+    } catch (err) {
+      setError(err.message || 'Failed to update ticket');
+    }
+  };
+
+  // Update the onClick handler for the Take Action button
+  const handleTakeActionClick = () => {
+    setIctDetails({
+      assignedTo: ticket.ictAssignedTo || '',
+      diagnosisDetails: ticket.ictDiagnosisDetails || '',
+      fixDetails: ticket.ictFixDetails || '',
+      dateFixed: ticket.ictDateFixed ? formatDateForInput(ticket.ictDateFixed) : '',
+      recommendations: ticket.ictRecommendations || ''
+    });
+    setNewStatus('IN_PROGRESS');
+    setIctDetailsDialogOpen(true);
+  };
+
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
@@ -255,6 +299,16 @@ const TicketDetails = () => {
               Basic Information
             </Typography>
             <List>
+              <ListItem>
+                <ListItemText
+                  primary="Tracking ID"
+                  secondary={
+                    <Typography component="span" variant="body2">
+                      {ticket.trackingId}
+                    </Typography>
+                  }
+                />
+              </ListItem>
               <ListItem>
                 <ListItemText
                   primary="Status"
@@ -316,36 +370,48 @@ const TicketDetails = () => {
               <Typography variant="h6">
                 ICT Support Information
               </Typography>
-              <Button
-                variant="contained"
-                color="primary"
-                size="small"
-                onClick={() => {
-                  setIctDetails({
-                    assignedTo: ticket.ictAssignedTo || '',
-                    diagnosisDetails: ticket.ictDiagnosisDetails || '',
-                    fixDetails: ticket.ictFixDetails || '',
-                    dateFixed: ticket.ictDateFixed || '',
-                    recommendations: ticket.ictRecommendations || ''
-                  });
-                  setNewStatus('IN_PROGRESS');
-                  setIctDetailsDialogOpen(true);
-                }}
-              >
-                Take Action
-              </Button>
+              <Box>
+                {!ticket.ictAssignedTo && (
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    size="small"
+                    onClick={handleTakeActionClick}
+                  >
+                    Take Action
+                  </Button>
+                )}
+                {ticket.ictAssignedTo && ticket.status !== 'RESOLVED' && (
+                  <Button
+                    variant="contained"
+                    color="success"
+                    size="small"
+                    onClick={() => {
+                      setIctDetails({
+                        ...ictDetails,
+                        assignedTo: ticket.ictAssignedTo,
+                        diagnosisDetails: '',
+                        fixDetails: '',
+                        dateFixed: '',
+                      });
+                      setNewStatus('RESOLVED');
+                      setIctDetailsDialogOpen(true);
+                    }}
+                  >
+                    Resolve Ticket
+                  </Button>
+                )}
+              </Box>
             </Box>
             <List>
               <ListItem>
                 <ListItemText
                   primary="Assigned To"
                   secondary={
-                    <Typography component="span" variant="body2">
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <PersonIcon fontSize="small" />
-                        {ticket.ictAssignedTo || 'Not yet assigned'}
-                      </Box>
-                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <PersonIcon fontSize="small" />
+                      {ticket.ictAssignedTo || 'Not yet assigned'}
+                    </Box>
                   }
                 />
               </ListItem>
@@ -558,14 +624,35 @@ const TicketDetails = () => {
                         />
                       </ListItem>
                     )}
+                    <Box>
+                      <Typography><strong>Document Type:</strong> {ticket.documentType}</Typography>
+                      {/* Add any other document-specific fields */}
+                    </Box>
                   </List>
                 </>
+              )}
+              {ticket.category === 'TECHNICAL_ASSISTANCE' && (
+                <Box>
+                  <Typography><strong>Name:</strong> {ticket.name || 'N/A'}</Typography>
+                  <Typography><strong>Email:</strong> {ticket.email || 'N/A'}</Typography>
+                  <Typography><strong>Priority:</strong> {ticket.priority}</Typography>
+                  <Typography><strong>Location:</strong> {ticket.categorySpecificDetails?.details?.location}</Typography>
+                  {ticket.location === 'SCHOOL_IMUS_CITY' && (
+                    <>
+                      <Typography><strong>School Level:</strong> {ticket.categorySpecificDetails?.details?.schoolLevel}</Typography>
+                      <Typography><strong>School Name:</strong> {ticket.categorySpecificDetails?.details?.schoolName}</Typography>
+                    </>
+                  )}
+                  {ticket.location === 'SDO_IMUS_CITY' && (
+                    <Typography><strong>Department:</strong> {ticket.categorySpecificDetails?.details?.department}</Typography>
+                  )}
+                </Box>
               )}
             </Paper>
           </Grid>
 
           {/* Category-specific additional details from JSON */}
-          {ticket.categorySpecificDetails && (
+          {ticket.categorySpecificDetails && ticket.category === 'TECHNICAL_ASSISTANCE' && (
             <Grid item xs={12}>
               <Typography variant="h6" gutterBottom>
                 Additional Details
@@ -592,6 +679,18 @@ const TicketDetails = () => {
                       </ListItem>
                     );
                   })}
+                  <ListItem>
+                    <ListItemText
+                      primary="Subject"
+                      secondary={ticket.subject || 'Not specified'}
+                    />
+                  </ListItem>
+                  <ListItem>
+                    <ListItemText
+                      primary="Message"
+                      secondary={ticket.message || 'Not provided'}
+                    />
+                  </ListItem>
                 </List>
               </Paper>
             </Grid>
@@ -671,11 +770,16 @@ const TicketDetails = () => {
         maxWidth="md"
         fullWidth
       >
-        <DialogTitle>Take Action on Ticket</DialogTitle>
+        <DialogTitle>
+          {newStatus === 'RESOLVED' ? 'Resolve Ticket' : 'Take Action on Ticket'}
+        </DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
             <Alert severity="info" sx={{ mb: 1 }}>
-              Taking action on this ticket will automatically set its status to "In Progress"
+              {newStatus === 'RESOLVED'
+                ? 'Please provide resolution details to complete this ticket'
+                : 'Taking action on this ticket will automatically set its status to "In Progress"'
+              }
             </Alert>
             <TextField
               fullWidth
@@ -684,43 +788,44 @@ const TicketDetails = () => {
               onChange={(e) => setIctDetails({ ...ictDetails, assignedTo: e.target.value })}
               placeholder="Name of ICT staff assigned"
               required
+              disabled={Boolean(ticket.ictAssignedTo)}
             />
-            <TextField
-              fullWidth
-              multiline
-              rows={3}
-              label="Diagnosis Details"
-              value={ictDetails.diagnosisDetails}
-              onChange={(e) => setIctDetails({ ...ictDetails, diagnosisDetails: e.target.value })}
-              placeholder="Detailed diagnosis of the issue"
-              required
-            />
-            <TextField
-              fullWidth
-              multiline
-              rows={3}
-              label="Fix Details"
-              value={ictDetails.fixDetails}
-              onChange={(e) => setIctDetails({ ...ictDetails, fixDetails: e.target.value })}
-              placeholder="Details of how the issue was fixed"
-            />
-            <TextField
-              fullWidth
-              type="datetime-local"
-              label="Date Fixed"
-              value={ictDetails.dateFixed}
-              onChange={(e) => setIctDetails({ ...ictDetails, dateFixed: e.target.value })}
-              InputLabelProps={{ shrink: true }}
-            />
-            <TextField
-              fullWidth
-              multiline
-              rows={3}
-              label="Recommendations"
-              value={ictDetails.recommendations}
-              onChange={(e) => setIctDetails({ ...ictDetails, recommendations: e.target.value })}
-              placeholder="Any recommendations for preventing similar issues"
-            />
+            {newStatus === 'RESOLVED' && (
+              <>
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={3}
+                  label="Diagnosis Details"
+                  value={ictDetails.diagnosisDetails}
+                  onChange={(e) => setIctDetails({ ...ictDetails, diagnosisDetails: e.target.value })}
+                  placeholder="Detailed diagnosis of the issue"
+                  required
+                  error={!ictDetails.diagnosisDetails}
+                />
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={3}
+                  label="Fix Details"
+                  value={ictDetails.fixDetails}
+                  onChange={(e) => setIctDetails({ ...ictDetails, fixDetails: e.target.value })}
+                  placeholder="Details of how the issue was fixed"
+                  required
+                  error={!ictDetails.fixDetails}
+                />
+                <TextField
+                  fullWidth
+                  type="datetime-local"
+                  label="Date Fixed"
+                  value={formatDateForInput(ictDetails.dateFixed)}
+                  onChange={(e) => setIctDetails({ ...ictDetails, dateFixed: e.target.value })}
+                  InputLabelProps={{ shrink: true }}
+                  required
+                  error={!ictDetails.dateFixed}
+                />
+              </>
+            )}
             <TextField
               fullWidth
               multiline
@@ -736,14 +841,11 @@ const TicketDetails = () => {
         <DialogActions>
           <Button onClick={() => setIctDetailsDialogOpen(false)}>Cancel</Button>
           <Button 
-            onClick={async () => {
-              await handleIctDetailsUpdate();
-              await handleStatusUpdate();
-            }} 
+            onClick={handleIctActionClick}
             variant="contained" 
-            color="primary"
+            color={newStatus === 'RESOLVED' ? 'success' : 'primary'}
           >
-            Submit Action
+            {newStatus === 'RESOLVED' ? 'Complete Resolution' : 'Assign Ticket'}
           </Button>
         </DialogActions>
       </Dialog>

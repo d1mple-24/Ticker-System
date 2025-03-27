@@ -258,7 +258,7 @@ const DocumentUpload = () => {
 
       const { ticketId, trackingId } = response.data;
       setTicketInfo({ ticketId, trackingId });
-
+      
       setMessage({
         type: 'success',
         text: `Document upload request submitted successfully! Your Ticket ID is #${ticketId} and Tracking ID is ${trackingId}. Please save these for future reference. An email has been sent to ${formData.email} with your ticket details.`,
@@ -364,16 +364,25 @@ const DocumentUpload = () => {
         {message && (
           <Alert 
             severity={message.type} 
-            sx={{ mb: 3 }}
+            sx={{ 
+              mb: 3,
+              borderRadius: 1,
+              '& .MuiAlert-icon': {
+                fontSize: '1.5rem'
+              }
+            }}
           >
             {message.text}
             {ticketInfo && (
-              <Box sx={{ mt: 2, p: 2, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid' }}>
+              <Box sx={{ mt: 2, p: 2, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: message.type === 'success' ? 'success.main' : 'error.main' }}>
                 <Typography variant="body2" gutterBottom>
                   <strong>Ticket ID:</strong> #{ticketInfo.ticketId}
                 </Typography>
                 <Typography variant="body2">
                   <strong>Tracking ID:</strong> {ticketInfo.trackingId}
+                </Typography>
+                <Typography variant="caption" display="block" sx={{ mt: 1, color: 'text.secondary' }}>
+                  Please save these details for tracking your ticket status.
                 </Typography>
               </Box>
             )}
@@ -451,8 +460,8 @@ const DocumentUpload = () => {
                   MenuProps={{
                     PaperProps: {
                       style: {
-                        maxHeight: 300,
-                        width: '60%'
+                        maxHeight: 200,
+                        width: '50%'
                       },
                     },
                   }}
@@ -497,8 +506,8 @@ const DocumentUpload = () => {
                   MenuProps={{
                     PaperProps: {
                       style: {
-                        maxHeight: 300,
-                        width: '60%'
+                        maxHeight: 200,
+                        width: '50%'
                       },
                     },
                   }}

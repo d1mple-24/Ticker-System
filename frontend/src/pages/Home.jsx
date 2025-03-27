@@ -26,12 +26,13 @@ const Home = () => {
         alignItems: 'center',
         cursor: 'pointer',
         transition: 'all 0.3s',
-        backgroundColor: '#fcf8f0',
-        border: '1px solid #e0d2b8',
+        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+        backdropFilter: 'blur(10px)',
+        border: '1px solid rgba(255, 255, 255, 0.2)',
         '&:hover': {
           transform: 'translateY(-8px)',
-          boxShadow: '0 8px 16px rgba(139, 109, 55, 0.15)',
-          borderColor: '#d4b577',
+          boxShadow: '0 8px 16px rgba(25, 118, 210, 0.2)',
+          borderColor: '#1976d2',
         },
       }}
       onClick={onClick}
@@ -55,6 +56,7 @@ const Home = () => {
         sx={{ 
           fontWeight: 600,
           fontFamily: '"Lisu Bosa", serif',
+          color: '#1976d2',
         }}
       >
         {title}
@@ -73,14 +75,35 @@ const Home = () => {
   );
 
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: '#f5f5f5' }}>
+    <Box 
+      sx={{ 
+        minHeight: '100vh',
+        position: 'relative',
+        backgroundColor: '#f5f5f5',
+        '&::before': {
+          content: '""',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundImage: `url(${process.env.PUBLIC_URL}/deped-building.jpg)`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
+          opacity: 0.3,
+          zIndex: -1,
+        },
+      }}
+    >
       {/* Header */}
       <Paper 
         elevation={0} 
         sx={{ 
           py: 2, 
           px: 3, 
-          bgcolor: '#1976d2',
+          bgcolor: 'rgba(25, 118, 210, 0.95)',
+          backdropFilter: 'blur(10px)',
           color: '#fff',
           borderRadius: 0,
           boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
@@ -92,7 +115,6 @@ const Home = () => {
           maxWidth: 1200,
           mx: 'auto',
           gap: 2,
-          color: "#5c3d11"
         }}>
           <img 
             src={process.env.PUBLIC_URL + '/deped-logo.png'} 
@@ -104,7 +126,8 @@ const Home = () => {
             sx={{ 
               fontWeight: 800,
               fontFamily: '"Lisu Bosa", serif',
-              color: "white"
+              color: "white",
+              textShadow: '1px 1px 2px rgba(0,0,0,0.1)',
             }}
           >
             Division of Imus
@@ -115,23 +138,33 @@ const Home = () => {
       {/* Main Content */}
       <Container maxWidth="lg" sx={{ py: 8 }}>
         {/* Welcome Section */}
-        <Box sx={{ textAlign: 'center', mb: 8 }}>
+        <Box 
+          sx={{ 
+            textAlign: 'center', 
+            mb: 8,
+            position: 'relative',
+            zIndex: 1,
+          }}
+        >
           <Typography 
             variant="h3" 
             gutterBottom 
             sx={{ 
               fontWeight: 700,
               fontFamily: '"Lisu Bosa", serif',
+              color: '#1976d2',
+              textShadow: '2px 2px 4px rgba(0,0,0,0.1)',
             }}
           >
             Hello, how can we help?
           </Typography>
           <Typography 
             variant="h6" 
-            color="text.secondary" 
             sx={{ 
               mb: 2,
               fontFamily: '"Lisu Bosa", serif',
+              color: '#666',
+              textShadow: '1px 1px 2px rgba(0,0,0,0.05)',
             }}
           >
             Division of Imus City
@@ -159,13 +192,24 @@ const Home = () => {
         </Grid>
 
         {/* Admin Panel Link */}
-        <Box sx={{ mt: 4, textAlign: 'center' }}>
+        <Box 
+          sx={{ 
+            mt: 4, 
+            textAlign: 'center',
+            position: 'relative',
+            zIndex: 1,
+          }}
+        >
           <Typography
             variant="body2"
-            color="primary"
             sx={{ 
               cursor: 'pointer',
-              '&:hover': { textDecoration: 'underline' }
+              color: '#1976d2',
+              fontWeight: 500,
+              '&:hover': { 
+                textDecoration: 'underline',
+                color: '#1565c0',
+              }
             }}
             onClick={() => navigate('/login')}
           >
@@ -183,10 +227,11 @@ const Home = () => {
           position: 'fixed',
           bottom: 0,
           width: '100%',
-          bgcolor: 'white',
-          borderTop: '1px solidrgb(250, 250, 250)',
-          color: '#5c3d11',
-          boxShadow: '0 -2px 4px rgba(0,0,0,0.05)'
+          bgcolor: 'rgba(255, 255, 255, 0.95)',
+          backdropFilter: 'blur(10px)',
+          borderTop: '1px solid rgba(0,0,0,0.1)',
+          color: '#666',
+          boxShadow: '0 -2px 4px rgba(0,0,0,0.05)',
         }}
       >
         <Typography 

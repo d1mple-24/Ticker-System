@@ -48,6 +48,13 @@ const TicketCategories = () => {
       icon: <UploadFileIcon sx={{ fontSize: 40 }} />,
       path: '/documents',
       color: '#ff9800'
+    },
+    'TECHNICAL_ASSISTANCE': {
+      title: 'Technical Assistance',
+      description: 'Request technical support for DCP, AV, ICT tutorials, and more',
+      icon: <ComputerIcon sx={{ fontSize: 40 }} />,
+      path: '/technical-assistance',
+      color: '#2196f3'
     }
   };
 
@@ -59,24 +66,28 @@ const TicketCategories = () => {
         const response = await axios.get(`${API_BASE_URL}/settings/categories`);
         
         if (response.data.success) {
-          // Include all categories, not just active ones
-          setCategories(response.data.categories);
+          // Ensure all categories are included with proper order
+          const allCategories = [
+            { id: 1, name: 'TROUBLESHOOTING', active: true },
+            { id: 2, name: 'ACCOUNT_MANAGEMENT', active: true },
+            { id: 3, name: 'DOCUMENT_UPLOAD', active: true },
+            { id: 4, name: 'TECHNICAL_ASSISTANCE', active: true }
+          ];
+          setCategories(allCategories);
           setError(null);
-          
-          // Store the full list of categories with active status in localStorage
-          // This will be used to check if direct URL access is allowed
-          localStorage.setItem('ticketCategories', JSON.stringify(response.data.categories));
+          localStorage.setItem('ticketCategories', JSON.stringify(allCategories));
         } else {
           throw new Error(response.data.message || 'Failed to load categories');
         }
       } catch (err) {
         console.error('Error loading categories:', err);
         setError('Unable to load ticket categories. Please try again later.');
-        // Fallback to show all categories if API fails
+        // Fallback categories with Technical Assistance
         const fallbackCategories = [
           { id: 1, name: 'TROUBLESHOOTING', active: true },
           { id: 2, name: 'ACCOUNT_MANAGEMENT', active: true },
-          { id: 3, name: 'DOCUMENT_UPLOAD', active: true }
+          { id: 3, name: 'DOCUMENT_UPLOAD', active: true },
+          { id: 4, name: 'TECHNICAL_ASSISTANCE', active: true }
         ];
         setCategories(fallbackCategories);
         localStorage.setItem('ticketCategories', JSON.stringify(fallbackCategories));
@@ -233,7 +244,7 @@ const TicketCategories = () => {
           if (!data) return null;
           
           return (
-            <Grid item xs={12} md={4} key={category.id}>
+            <Grid item xs={12} sm={6} md={6} key={category.id}>
               <ServiceCard
                 title={data.title}
                 description={data.description}

@@ -6,7 +6,7 @@ import path from 'path';
 import fs from 'fs';
 import { sendTicketEmail } from '../utils/emailSender.js';
 import { validateCaptcha } from '../utils/captchaUtils.js';
-import { canSubmitTicket, recordSubmission } from '../utils/ticketRateLimit.js';
+import { canSubmitTicket, recordSubmission, getRateLimitStatus } from '../utils/ticketRateLimit.js';
 
 const prisma = new PrismaClient();
 
@@ -135,6 +135,24 @@ const upload = multer({
   }
 }).single('file');
 
+const checkRateLimit = async (email, ip, res) => {
+  try {
+    canSubmitTicket(email, ip);
+  } catch (error) {
+    const status = getRateLimitStatus(email, ip);
+    return res.status(429).json({
+      success: false,
+      message: error.message,
+      rateLimitInfo: {
+        remainingAttempts: status.remainingAttempts,
+        cooldownMinutes: Math.ceil(status.cooldownRemaining / 60000),
+        isBlocked: status.isBlocked
+      }
+    });
+  }
+  return null;
+};
+
 // Create document upload ticket
 const createDocumentUploadTicket = async (req, res) => {
   try {
@@ -149,7 +167,9 @@ const createDocumentUploadTicket = async (req, res) => {
       captchaCode
     } = req.body;
 
-    const clientIp = req.ip || req.connection.remoteAddress;
+    // Check rate limiting first
+    const rateLimitError = await checkRateLimit(email, req.ip, res);
+    if (rateLimitError) return rateLimitError;
 
     // Create ticket with attachment in a single transaction
     const ticket = await prisma.$transaction(async (prisma) => {
@@ -196,13 +216,25 @@ const createDocumentUploadTicket = async (req, res) => {
       return updatedTicket;
     });
 
+    // Record successful submission
+    recordSubmission(email, req.ip);
+
     // Send confirmation email
-    await sendTicketConfirmationEmail(ticket);
+    await sendTicketConfirmationEmail({
+      email,
+      name,
+      trackingId: ticket.trackingId,
+      category: 'Document Upload',
+      subject,
+      message
+    });
 
     return res.status(201).json({
       success: true,
       message: 'Document upload ticket created successfully',
-      trackingId: ticket.trackingId
+      ticketId: ticket.id,
+      trackingId: ticket.trackingId,
+      rateLimitInfo: getRateLimitStatus(email, req.ip)
     });
   } catch (error) {
     console.error('Error creating document upload ticket:', error);
@@ -561,6 +593,7 @@ const trackTicket = async (req, res) => {
         priority: true,
         name: true,
         email: true,
+        department: true,
         createdAt: true,
         updatedAt: true,
         trackingId: true,
@@ -580,11 +613,16 @@ const trackTicket = async (req, res) => {
         // Account Management specific fields
         accountType: true,
         actionType: true,
+        locationType: true,
+        schoolLevel: true,
+        schoolName: true,
         subject: true,
         message: true,
         // Document Upload specific fields
         documentSubject: true,
         documentMessage: true,
+        // Technical Assistance specific fields
+        taType: true,
         // Category specific details
         categorySpecificDetails: true
       }
@@ -601,7 +639,9 @@ const trackTicket = async (req, res) => {
     const formattedTicket = {
       ...ticket,
       createdAt: ticket.createdAt.toLocaleString(),
-      updatedAt: ticket.updatedAt.toLocaleString()
+      updatedAt: ticket.updatedAt.toLocaleString(),
+      dateOfRequest: ticket.dateOfRequest ? ticket.dateOfRequest.toLocaleString() : null,
+      ictDateFixed: ticket.ictDateFixed ? ticket.ictDateFixed.toLocaleString() : null
     };
 
     // Return ticket details based on category
@@ -636,7 +676,8 @@ const getCategorySpecificDetails = (ticket) => {
           equipment: ticket.typeOfEquipment,
           model: ticket.modelOfEquipment,
           serialNo: ticket.serialNo,
-          problem: ticket.specificProblem
+          problem: ticket.specificProblem,
+          department: ticket.department
         }
       };
     case 'ACCOUNT_MANAGEMENT':
@@ -645,6 +686,10 @@ const getCategorySpecificDetails = (ticket) => {
         details: {
           accountType: ticket.accountType,
           actionType: ticket.actionType,
+          locationType: ticket.locationType,
+          schoolLevel: ticket.schoolLevel,
+          schoolName: ticket.schoolName,
+          department: ticket.department,
           subject: ticket.subject,
           message: ticket.message
         }
@@ -654,7 +699,22 @@ const getCategorySpecificDetails = (ticket) => {
         type: 'Document Processing',
         details: {
           subject: ticket.documentSubject,
-          message: ticket.documentMessage
+          message: ticket.documentMessage,
+          department: ticket.department
+        }
+      };
+    case 'TECHNICAL_ASSISTANCE':
+      return {
+        type: 'Technical Assistance',
+        details: {
+          taType: ticket.taType,
+          priority: ticket.priority,
+          location: ticket.location,
+          schoolLevel: ticket.schoolLevel,
+          schoolName: ticket.schoolName,
+          department: ticket.department,
+          subject: ticket.subject,
+          message: ticket.message
         }
       };
     default:
@@ -680,6 +740,10 @@ const createAccountManagementTicket = async (req, res) => {
       captchaId,
       captchaCode
     } = req.body;
+
+    // Check rate limiting first
+    const rateLimitError = await checkRateLimit(email, req.ip, res);
+    if (rateLimitError) return rateLimitError;
 
     // Validate CAPTCHA
     const isValidCaptcha = await validateCaptcha(captchaId, captchaCode, req.ip);
@@ -715,6 +779,9 @@ const createAccountManagementTicket = async (req, res) => {
       data: { trackingId }
     });
 
+    // Record successful submission
+    recordSubmission(email, req.ip);
+
     // Send confirmation email
     await sendTicketConfirmationEmail({
       email,
@@ -726,9 +793,11 @@ const createAccountManagementTicket = async (req, res) => {
     });
 
     res.status(201).json({
+      success: true,
       message: 'Account management ticket created successfully',
       ticketId: ticket.id,
-      trackingId
+      trackingId,
+      rateLimitInfo: getRateLimitStatus(email, req.ip)
     });
   } catch (error) {
     console.error('Error creating account management ticket:', error);
@@ -836,11 +905,100 @@ const createTroubleshootingTicket = async (req, res) => {
   }
 };
 
+// Create technical assistance ticket
+const createTechnicalAssistanceTicket = async (req, res) => {
+  try {
+    const {
+      name,
+      email,
+      priority,
+      taType,
+      location,
+      schoolLevel,
+      schoolName,
+      department,
+      subject,
+      message,
+      captchaId,
+      captchaCode
+    } = req.body;
+
+    // Check rate limiting first
+    const rateLimitError = await checkRateLimit(email, req.ip, res);
+    if (rateLimitError) return rateLimitError;
+
+    // Create ticket with tracking ID
+    const ticket = await prisma.ticket.create({
+      data: {
+        category: 'TECHNICAL_ASSISTANCE',
+        name,
+        email,
+        priority,
+        taType,
+        location,
+        schoolLevel: schoolLevel || null,
+        schoolName: schoolName || null,
+        department: department || null,
+        subject,
+        message,
+        status: 'PENDING',
+        categorySpecificDetails: {
+          type: 'Technical Assistance',
+          details: {
+            assistanceType: taType,
+            location: location === 'SDO_IMUS_CITY' ? 'SDO - Imus City' : 'School - Imus City',
+            schoolLevel: schoolLevel || null,
+            schoolName: schoolName || null,
+            department: department || null
+          }
+        }
+      }
+    });
+
+    // Generate tracking ID based on ticket ID
+    const trackingId = generateTrackingId(ticket.id);
+
+    // Update ticket with tracking ID
+    const updatedTicket = await prisma.ticket.update({
+      where: { id: ticket.id },
+      data: { trackingId }
+    });
+
+    // Record successful submission
+    recordSubmission(email, req.ip);
+
+    // Send confirmation email
+    await sendTicketConfirmationEmail({
+      email,
+      name,
+      trackingId,
+      category: 'Technical Assistance',
+      subject,
+      message
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Technical assistance ticket created successfully',
+      ticketId: ticket.id,
+      trackingId,
+      rateLimitInfo: getRateLimitStatus(email, req.ip)
+    });
+  } catch (error) {
+    console.error('Error creating technical assistance ticket:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to create technical assistance ticket' 
+    });
+  }
+};
+
 // Module exports
 export {
   createTroubleshootingTicket,
   createAccountManagementTicket,
   createDocumentUploadTicket,
+  createTechnicalAssistanceTicket,
   createTicket,
   getTickets,
   getTicketById,
